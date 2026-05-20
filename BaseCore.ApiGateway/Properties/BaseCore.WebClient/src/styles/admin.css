@@ -1,0 +1,429 @@
+/* ═════════════════════════════════════════════════════════════════
+   ULTIMATE ADMIN UI CSS - PHONE STORE 2026
+   Thiết kế: Modern, Glassmorphism, Smooth Animations, High Contrast
+   ═════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+	/* 1. Tông màu chủ đạo (Primary Palette) */
+	--primary: #4f46e5; /* Tím Indigo cực sang */
+	--primary-hover: #4338ca;
+	--primary-light: #e0e7ff; /* Tím nhạt cho background badge */
+
+	--secondary: #0ea5e9; /* Xanh dương Cyan */
+	--accent: #f43f5e; /* Hồng đỏ điểm nhấn */
+	/* 2. Màu trạng thái (Status Colors) */
+	--success: #10b981; /* Xanh ngọc */
+	--success-bg: #d1fae5;
+	--danger: #ef4444; /* Đỏ cảnh báo */
+	--danger-bg: #fee2e2;
+	--warning: #f59e0b; /* Vàng cam */
+	--warning-bg: #fef3c7;
+	/* 3. Màu nền & Viền (Background & Borders) */
+	--bg-main: #f4f7fe; /* Xám xanh cực nhạt, dịu mắt */
+	--card-bg: #ffffff;
+	--border-color: #e5e7eb;
+	--border-light: #f3f4f6;
+	/* 4. Text Colors */
+	--text-main: #111827; /* Đen tuyền */
+	--text-muted: #6b7280; /* Xám bạc */
+	--text-light: #9ca3af;
+	/* 5. Hiệu ứng (Effects) */
+	--radius-sm: 8px;
+	--radius-md: 12px;
+	--radius-lg: 16px;
+	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+	--shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+	--transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── TÙY CHỈNH THANH CUỘN (CUSTOM SCROLLBAR) ── */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #cbd5e1;
+	border-radius: 10px;
+}
+
+	::-webkit-scrollbar-thumb:hover {
+		background: #94a3b8;
+	}
+
+/* ── RESET CƠ BẢN ── */
+* {
+	box-sizing: border-box;
+	font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+body {
+	background-color: var(--bg-main);
+	color: var(--text-main);
+	margin: 0;
+	padding: 0;
+}
+
+/* ── BỐ CỤC CHÍNH (LAYOUT) ── */
+.admin-layout {
+	display: flex;
+	min-height: 100vh;
+	width: 100%;
+	background-color: var(--bg-main);
+}
+
+.admin-container {
+	flex: 1;
+	padding: 32px 40px;
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+	overflow-x: hidden;
+	animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* ── THÀNH PHẦN CARD (WHITE BOX) ── */
+.card {
+	background: var(--card-bg);
+	border-radius: var(--radius-lg);
+	box-shadow: var(--shadow-md);
+	border: 1px solid rgba(255, 255, 255, 0.8);
+	padding: 24px;
+	transition: var(--transition);
+}
+
+	.card:hover {
+		box-shadow: var(--shadow-hover);
+		transform: translateY(-2px);
+	}
+
+/* ── HEADER & FILTERS ── */
+.admin-header h2 {
+	font-size: 26px;
+	font-weight: 800;
+	color: var(--text-main);
+	letter-spacing: -0.5px;
+	margin: 0 0 8px 0;
+}
+
+.filter-group {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 16px;
+	background: #ffffff;
+	border-radius: var(--radius-lg);
+	padding: 16px 20px;
+}
+
+.search-box {
+	position: relative;
+	flex: 1;
+	min-width: 250px;
+}
+
+	.search-box i {
+		position: absolute;
+		left: 16px;
+		top: 50%;
+		transform: translateY(-50%);
+		color: var(--text-light);
+		font-size: 15px;
+	}
+
+.input-search, .select-filter {
+	width: 100%;
+	padding: 12px 16px 12px 42px;
+	border: 1.5px solid var(--border-color);
+	border-radius: var(--radius-sm);
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--text-main);
+	background: #f8fafc;
+	outline: none;
+	transition: var(--transition);
+}
+
+.select-filter {
+	padding-left: 16px;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 12px center;
+	background-size: 16px;
+	appearance: none;
+	cursor: pointer;
+}
+
+	.input-search:focus, .select-filter:focus {
+		background: #ffffff;
+		border-color: var(--primary);
+		box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+	}
+
+/* ── BẢNG DỮ LIỆU (ULTRA MODERN TABLE) ── */
+.table-responsive {
+	overflow-x: auto;
+	border-radius: var(--radius-lg);
+}
+
+.admin-table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	text-align: left;
+}
+
+	.admin-table th {
+		padding: 16px 20px;
+		background-color: #f8fafc;
+		color: var(--text-muted);
+		font-size: 12px;
+		text-transform: uppercase;
+		font-weight: 700;
+		letter-spacing: 0.5px;
+		border-bottom: 2px solid var(--border-color);
+		position: sticky;
+		top: 0;
+		z-index: 10;
+	}
+
+	.admin-table td {
+		padding: 18px 20px;
+		border-bottom: 1px solid var(--border-light);
+		font-size: 14px;
+		font-weight: 500;
+		color: var(--text-main);
+		vertical-align: middle;
+		transition: background-color 0.2s;
+	}
+
+	.admin-table tr:hover td {
+		background-color: #f8fafc;
+	}
+
+	.admin-table tr:last-child td {
+		border-bottom: none;
+	}
+
+/* ── CHI TIẾT TEXT TRONG BẢNG ── */
+.id-column {
+	font-weight: 700;
+	color: var(--text-light);
+}
+
+.cust-name {
+	font-weight: 700;
+	color: var(--primary);
+	font-size: 15px;
+}
+
+.item-line {
+	font-size: 13px;
+	margin-bottom: 6px;
+	color: var(--text-muted);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.price-text {
+	font-weight: 800;
+	color: var(--danger);
+	font-size: 15px;
+}
+
+/* ── BADGES (NHÃN TRẠNG THÁI BO TRÒN) ── */
+.badge {
+	padding: 6px 12px;
+	border-radius: 99px;
+	font-size: 12px;
+	font-weight: 700;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	letter-spacing: 0.3px;
+}
+
+.badge-pending {
+	background: var(--warning-bg);
+	color: #b45309;
+}
+
+.badge-shipping {
+	background: var(--primary-light);
+	color: var(--primary-hover);
+}
+
+.badge-delivered {
+	background: var(--success-bg);
+	color: #047857;
+}
+
+.badge-cancelled {
+	background: var(--danger-bg);
+	color: #b91c1c;
+}
+
+/* ── NÚT BẤM (BUTTONS) ── */
+.btn-group {
+	display: flex;
+	gap: 8px;
+	justify-content: center;
+}
+
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 10px 18px;
+	border-radius: var(--radius-sm);
+	border: none;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: var(--transition);
+	font-family: inherit;
+	white-space: nowrap;
+}
+
+.btn-primary {
+	background: var(--primary);
+	color: white;
+	box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+}
+
+	.btn-primary:hover {
+		background: var(--primary-hover);
+		transform: translateY(-2px);
+		box-shadow: 0 6px 12px -2px rgba(79, 70, 229, 0.3);
+	}
+
+.btn-success {
+	background: var(--success);
+	color: white;
+}
+
+	.btn-success:hover {
+		background: #059669;
+		transform: translateY(-1px);
+	}
+
+.btn-danger {
+	background: #fff;
+	color: var(--danger);
+	border: 1px solid var(--danger-bg);
+}
+
+	.btn-danger:hover {
+		background: var(--danger-bg);
+		transform: translateY(-1px);
+	}
+
+.btn-sm {
+	padding: 6px 12px;
+	font-size: 13px;
+}
+
+/* Nút sửa xám nhạt */
+.btn-edit {
+	background: #f3f4f6;
+	color: #4b5563;
+}
+
+	.btn-edit:hover {
+		background: #e5e7eb;
+		color: #111827;
+	}
+
+/* ── PHÂN TRANG (PAGINATION) ── */
+.pagination-wrapper {
+	display: flex;
+	justify-content: center;
+	margin-top: 24px;
+	padding-top: 16px;
+	border-top: 1px solid var(--border-light);
+}
+
+.pagination {
+	display: flex;
+	gap: 8px;
+}
+
+.btn-page {
+	width: 36px;
+	height: 36px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--border-color);
+	background: white;
+	border-radius: var(--radius-sm);
+	cursor: pointer;
+	transition: var(--transition);
+	font-weight: 600;
+	color: var(--text-muted);
+}
+
+	.btn-page.active {
+		background: var(--primary);
+		color: white;
+		border-color: var(--primary);
+		box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
+	}
+
+	.btn-page:hover:not(.active) {
+		background: #f8fafc;
+		border-color: #cbd5e1;
+		color: var(--text-main);
+	}
+
+/* ── TRẠNG THÁI TRỐNG (EMPTY STATE) ── */
+.empty-state {
+	padding: 80px 0 !important;
+	text-align: center;
+}
+
+.empty-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+	.empty-content i {
+		font-size: 56px;
+		background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		margin-bottom: 16px;
+		filter: drop-shadow(0 4px 6px rgba(0,0,0,0.05));
+	}
+
+	.empty-content p {
+		color: var(--text-muted);
+		font-size: 15px;
+		font-weight: 500;
+		margin: 0;
+	}

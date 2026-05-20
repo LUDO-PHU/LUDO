@@ -1,0 +1,71 @@
+using BaseCore.Entities;
+using BaseCore.Repository;
+using Microsoft.EntityFrameworkCore;
+
+namespace BaseCore.APIService.Services
+{
+    public class AutoStatusWorker : BackgroundService
+    {
+        private readonly IServiceProvider _services;
+        private readonly ILogger<AutoStatusWorker> _logger;
+
+        public AutoStatusWorker(IServiceProvider services, ILogger<AutoStatusWorker> logger)
+        {
+            _services = services;
+            _logger = logger;
+        }
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            _logger.LogInformation("--- Robot AutoStatus đã bắt đầu hoạt động ---");
+
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    using (var scope = _services.CreateScope())
+                    {
+                        var context = scope.ServiceProvider.GetRequiredService<BaseCoreSalesContext>();
+
+                        // 1. XỬ LÝ ĐƠN HÀNG (Sau 2 ngày 'Shipping' -> 'Delivered')
+                        var twoDaysAgo = DateTime.Now.AddDays(-2);
+                        var ordersToUpdate = await context.Orders
+                            .Where(o => o.Status == OrderStatus.Shipping && o.OrderDate <= twoDaysAgo)
+                            .ToListAsync();
+
+                        foreach (var order in ordersToUpdate)
+                        {
+                            order.Status = OrderStatus.Delivered;
+                            _logger.LogInformation($"[Order #{order.Id}] Tự động cập nhật thành: Đã giao thành công.");
+                        }
+
+                        // 2. XỬ LÝ SẢN PHẨM (Sau 1 ngày 'ComingSoon' -> 'Active')
+                        // Nghiệm vụ: Hàng vừa nhập (Status 4) sau 24h mới được bán (Status 1)
+                        var oneDayAgo = DateTime.Now.AddDays(-1);
+                        var productsToActive = await context.Products
+                            .Where(p => p.Status == ProductStatus.ComingSoon && p.ImportedAt <= oneDayAgo)
+                            .ToListAsync();
+
+                        foreach (var prod in productsToActive)
+                        {
+                            prod.Status = ProductStatus.Active;
+                            _logger.LogInformation($"[Product: {prod.Name}] Đã đủ 24h nhập kho -> Chuyển sang trạng thái Đang bán.");
+                        }
+
+                        if (ordersToUpdate.Any() || productsToActive.Any())
+                        {
+                            await context.SaveChangesAsync();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Lỗi trong robot AutoStatus: {ex.Message}");
+                }
+
+                // Robot sẽ 'ngủ' 1 tiếng rồi thức dậy kiểm tra lại một lần
+                await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
+            }
+        }
+    }
+}

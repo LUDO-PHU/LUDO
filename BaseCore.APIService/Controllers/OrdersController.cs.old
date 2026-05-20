@@ -1,0 +1,372 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using BaseCore.Entities;
+using BaseCore.Repository;
+using System.Security.Claims;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+
+namespace BaseCore.APIService.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    [Authorize]
+    public class OrdersController : ControllerBase
+    {
+        private readonly BaseCoreSalesContext _context;
+
+        public OrdersController(BaseCoreSalesContext context)
+        {
+            _context = context;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetOrders()
+        {
+            IQueryable<Order> query = _context.Orders
+                .Include(o => o.OrderDetails)
+                .ThenInclude(d => d.Product)
+                .OrderByDescending(o => o.OrderDate);
+
+            if (!User.IsInRole("Admin"))
+            {
+                var userId = GetCurrentUserId();
+                if (string.IsNullOrWhiteSpace(userId))
+                    return Unauthorized();
+
+                query = query.Where(o => o.UserId == userId);
+            }
+
+            var orders = await query.ToListAsync();
+            return Ok(orders.Select(ToOrderResponse));
+        }
+
+        [HttpGet("search")]
+        public async Task<IActionResult> Search(
+            [FromQuery] string? keyword,
+            [FromQuery] string? status,
+            [FromQuery] DateTime? fromDate,
+            [FromQuery] DateTime? toDate,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            IQueryable<Order> query = _context.Orders
+                .Include(o => o.OrderDetails)
+                .ThenInclude(d => d.Product)
+                .AsQueryable();
+
+            if (!User.IsInRole("Admin"))
+            {
+                var userId = GetCurrentUserId();
+                if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+                query = query.Where(o => o.UserId == userId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                var kw = keyword.ToLower().Trim();
+                query = query.Where(o => o.CustomerName.ToLower().Contains(kw) || o.CustomerPhone.Contains(kw));
+            }
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                var parsedStatus = ParseOrderStatus(status);
+                if (parsedStatus.HasValue)
+                {
+                    query = query.Where(o => o.Status == parsedStatus.Value);
+                }
+            }
+
+            if (fromDate.HasValue)
+                query = query.Where(o => o.OrderDate >= fromDate.Value);
+
+            if (toDate.HasValue)
+            {
+                var end = toDate.Value.AddDays(1);
+                query = query.Where(o => o.OrderDate < end);
+            }
+
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .OrderByDescending(o => o.OrderDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                items = items.Select(ToOrderResponse),
+                totalCount,
+                page,
+                pageSize
+            });
+        }
+
+        // ĐÃ FIX LỖI 403 TẠI ĐÂY: Xử lý thông minh tham số "me"
+        [HttpGet("user/{userId}")]
+        public async Task<IActionResult> GetByUserId(string userId)
+        {
+            var currentUserId = GetCurrentUserId();
+
+            // Nếu Frontend gửi chữ "me", tự động gán bằng ID của người đang đăng nhập
+            if (userId.ToLower() == "me")
+            {
+                userId = currentUserId;
+                if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+            }
+
+            // Chặn nếu không phải Admin và cố xem đơn của người khác
+            if (!User.IsInRole("Admin") && currentUserId != userId)
+                return Forbid();
+
+            var orders = await _context.Orders
+                .Include(o => o.OrderDetails)
+                .ThenInclude(d => d.Product)
+                .Where(o => o.UserId == userId)
+                .OrderByDescending(o => o.OrderDate)
+                .ToListAsync();
+
+            return Ok(orders.Select(ToOrderResponse));
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var order = await _context.Orders
+                .Include(o => o.OrderDetails)
+                .ThenInclude(d => d.Product)
+                .FirstOrDefaultAsync(o => o.Id == id);
+
+            if (order == null)
+                return NotFound(new { message = "Order not found" });
+
+            if (!User.IsInRole("Admin") &&
+                !string.Equals(order.UserId, GetCurrentUserId(), StringComparison.OrdinalIgnoreCase))
+                return Forbid();
+
+            return Ok(ToOrderResponse(order));
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create([FromBody] CreateOrderDto dto)
+        {
+            var userId = GetCurrentUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+                return Unauthorized();
+
+            if (dto.Items == null || dto.Items.Count == 0)
+                return BadRequest(new { message = "Đơn hàng phải có ít nhất một sản phẩm" });
+
+            if (string.IsNullOrWhiteSpace(dto.ShippingAddress))
+                return BadRequest(new { message = "Vui lòng nhập địa chỉ giao hàng" });
+
+            var productIds = dto.Items.Select(i => i.ProductId).Distinct().ToList();
+            var products = await _context.Products
+                .Where(p => productIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id);
+
+            decimal totalAmount = 0;
+            var orderDetails = new List<OrderDetail>();
+
+            foreach (var item in dto.Items)
+            {
+                if (item.Quantity <= 0)
+                    return BadRequest(new { message = "Số lượng phải lớn hơn 0" });
+
+                if (!products.TryGetValue(item.ProductId, out var product))
+                    return BadRequest(new { message = $"Không tìm thấy sản phẩm #{item.ProductId}" });
+
+                if (product.Stock < item.Quantity)
+                    return BadRequest(new { message = $"'{product.Name}' chỉ còn {product.Stock} sản phẩm" });
+
+                decimal finalPrice = Math.Round(product.Price * (1m - ((product.DiscountPercent ?? 0m) / 100m)));
+
+                totalAmount += finalPrice * item.Quantity;
+                orderDetails.Add(new OrderDetail
+                {
+                    ProductId = item.ProductId,
+                    Quantity = item.Quantity,
+                    UnitPrice = finalPrice
+                });
+            }
+
+            var order = new Order
+            {
+                UserId = userId,
+                OrderDate = DateTime.Now,
+                TotalAmount = totalAmount,
+                Status = OrderStatus.Pending,
+                CustomerName = dto.CustomerName?.Trim() ?? "",
+                CustomerPhone = dto.CustomerPhone?.Trim() ?? "",
+                ShippingAddress = dto.ShippingAddress.Trim(),
+                Note = dto.Note?.Trim() ?? "",
+                OrderDetails = orderDetails
+            };
+
+            await _context.Orders.AddAsync(order);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetById), new { id = order.Id }, ToOrderResponse(order));
+        }
+
+        [HttpPut("{id}/status")]
+        [Authorize]
+        public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)
+        {
+            var nextStatus = ParseOrderStatus(dto.Status);
+            if (nextStatus == null)
+                return BadRequest(new { message = "Trạng thái không hợp lệ" });
+
+            var order = await _context.Orders
+                .Include(o => o.OrderDetails)
+                .ThenInclude(d => d.Product)
+                .FirstOrDefaultAsync(o => o.Id == id);
+
+            if (order == null)
+                return NotFound(new { message = "Order not found" });
+
+            bool isCurrentlyDeducted = order.Status == OrderStatus.Confirmed || order.Status == OrderStatus.Shipping || order.Status == OrderStatus.Delivered;
+            bool willBeDeducted = nextStatus == OrderStatus.Confirmed || nextStatus == OrderStatus.Shipping || nextStatus == OrderStatus.Delivered;
+
+            if (!isCurrentlyDeducted && willBeDeducted)
+            {
+                foreach (var detail in order.OrderDetails)
+                {
+                    if (detail.Product == null) continue;
+                    if (detail.Product.Stock < detail.Quantity)
+                        return BadRequest(new { message = $"Kho chỉ còn {detail.Product.Stock} cái '{detail.Product.Name}'. Không đủ để duyệt đơn!" });
+                }
+
+                foreach (var detail in order.OrderDetails)
+                {
+                    if (detail.Product != null) detail.Product.Stock -= detail.Quantity;
+                }
+
+                if (order.ConfirmedAt == null)
+                {
+                    order.ConfirmedAt = DateTime.Now;
+                    order.DeliveryFrom = DateTime.Now.AddDays(1);
+                    order.DeliveryTo = DateTime.Now.AddDays(3);
+                }
+            }
+            else if (isCurrentlyDeducted && !willBeDeducted)
+            {
+                foreach (var detail in order.OrderDetails)
+                {
+                    if (detail.Product != null) detail.Product.Stock += detail.Quantity;
+                }
+            }
+
+            order.Status = nextStatus.Value;
+            await _context.SaveChangesAsync();
+
+            return Ok(ToOrderResponse(order));
+        }
+
+        [HttpPut("{id}/cancel")]
+        public async Task<IActionResult> CancelOrder(int id)
+        {
+            var order = await _context.Orders
+                .Include(o => o.OrderDetails)
+                .ThenInclude(d => d.Product)
+                .FirstOrDefaultAsync(o => o.Id == id);
+
+            if (order == null)
+                return NotFound(new { message = "Order not found" });
+
+            if (!User.IsInRole("Admin") &&
+                !string.Equals(order.UserId, GetCurrentUserId(), StringComparison.OrdinalIgnoreCase))
+                return Forbid();
+
+            if (order.Status == OrderStatus.Confirmed && !User.IsInRole("Admin"))
+                return BadRequest(new { message = "Đơn đã xác nhận, vui lòng liên hệ cửa hàng để hủy" });
+
+            if (order.Status == OrderStatus.Delivered)
+                return BadRequest(new { message = "Không thể hủy đơn đã hoàn thành" });
+
+            bool isCurrentlyDeducted = order.Status == OrderStatus.Confirmed || order.Status == OrderStatus.Shipping;
+
+            if (isCurrentlyDeducted)
+            {
+                foreach (var detail in order.OrderDetails)
+                {
+                    if (detail.Product != null) detail.Product.Stock += detail.Quantity;
+                }
+            }
+
+            order.Status = OrderStatus.Cancelled;
+            await _context.SaveChangesAsync();
+
+            return Ok(ToOrderResponse(order));
+        }
+
+        // ─── Helpers ───────────────────────────────────────────────────────────
+
+        private string? GetCurrentUserId()
+            => User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        private static OrderStatus? ParseOrderStatus(string? status)
+        {
+            if (string.IsNullOrWhiteSpace(status)) return null;
+
+            return status.Trim().ToLower() switch
+            {
+                "pending" => OrderStatus.Pending,
+                "confirmed" => OrderStatus.Confirmed,
+                "shipping" => OrderStatus.Shipping,
+                "completed" or "delivered" => OrderStatus.Delivered,
+                "cancelled" or "canceled" => OrderStatus.Cancelled,
+                _ => null
+            };
+        }
+
+        private static object ToOrderResponse(Order order) => new
+        {
+            order.Id,
+            order.UserId,
+            order.OrderDate,
+            order.TotalAmount,
+            Status = order.Status.ToString(),
+            order.CustomerName,
+            order.CustomerPhone,
+            order.ShippingAddress,
+            order.Note,
+            order.ConfirmedAt,
+            order.DeliveryFrom,
+            order.DeliveryTo,
+            Details = order.OrderDetails?.Select(d => new
+            {
+                d.Id,
+                d.ProductId,
+                ProductName = d.Product?.Name ?? $"Sản phẩm đã xóa #{d.ProductId}",
+                ImageUrl = d.Product?.ImageUrl ?? "",
+                d.Quantity,
+                d.UnitPrice,
+                Subtotal = d.UnitPrice * d.Quantity
+            }).ToList() ?? new()
+        };
+    }
+
+    public class CreateOrderDto
+    {
+        public List<OrderItemDto> Items { get; set; } = new();
+        public string CustomerName { get; set; } = string.Empty;
+        public string CustomerPhone { get; set; } = string.Empty;
+        public string ShippingAddress { get; set; } = string.Empty;
+        public string? Note { get; set; }
+    }
+
+    public class OrderItemDto
+    {
+        public int ProductId { get; set; }
+        public int Quantity { get; set; }
+    }
+
+    public class UpdateStatusDto
+    {
+        public string Status { get; set; } = string.Empty;
+    }
+}

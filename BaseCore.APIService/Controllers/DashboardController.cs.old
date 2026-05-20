@@ -1,0 +1,60 @@
+using BaseCore.Entities;
+using BaseCore.Repository;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace BaseCore.APIService.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    [Authorize(Roles = "Admin")]
+    public class DashboardController : ControllerBase
+    {
+        private readonly BaseCoreSalesContext _context;
+
+        public DashboardController(BaseCoreSalesContext context)
+        {
+            _context = context;
+        }
+
+        [HttpGet("summary")]
+        public async Task<IActionResult> GetSummary()
+        {
+            // 1. Thống kê thẻ KPI (Card)
+            var totalUsers = await _context.Users.CountAsync(u => u.UserType == 0); // Khách hàng
+            var totalProducts = await _context.Products.CountAsync(p => p.Status == ProductStatus.Active);
+
+            // Tính doanh thu từ các đơn hàng đã hoàn thành (Delivered)
+            var completedOrders = await _context.Orders
+                .Where(o => o.Status == OrderStatus.Delivered)
+                .ToListAsync();
+
+            var totalRevenue = completedOrders.Sum(o => o.TotalAmount);
+            var totalOrders = completedOrders.Count;
+
+            // 2. Dữ liệu Biểu đồ (6 tháng gần nhất)
+            var chartData = Enumerable.Range(0, 6).Select(i =>
+            {
+                var monthDate = DateTime.Now.AddMonths(-i);
+                var monthOrders = completedOrders.Where(o => o.OrderDate.Month == monthDate.Month && o.OrderDate.Year == monthDate.Year).ToList();
+
+                return new
+                {
+                    name = $"Tháng {monthDate.Month}",
+                    revenue = monthOrders.Sum(o => o.TotalAmount),
+                    orders = monthOrders.Count
+                };
+            }).Reverse().ToList();
+
+            return Ok(new
+            {
+                cards = new { totalUsers, totalProducts, totalRevenue, totalOrders },
+                chart = chartData
+            });
+        }
+    }
+}

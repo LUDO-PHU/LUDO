@@ -1,0 +1,38 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build output
+bin/
+obj/
+Debug/
+Release/
+x64/
+x86/
+
+# .NET
+*.dll
+*.exe
+*.pdb
+*.cache
+TestResults/
+
+# Node / React / Vite
+node_modules/
+dist/
+build/
+.env
+.env.local
+
+# Codex build
+.codex-build/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,176 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using BaseCore.Entities;
+using BaseCore.Repository;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Security.Claims; // Bổ sung để lấy ID người dùng
+
+namespace BaseCore.APIService.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    [Authorize]
+    public class ReceiptsController : ControllerBase
+    {
+        private readonly BaseCoreSalesContext _context;
+
+        public ReceiptsController(BaseCoreSalesContext context)
+        {
+            _context = context;
+        }
+
+        /// <summary>
+        /// GET /api/receipts/search — TÌM KIẾM ĐA TIÊU CHÍ & PHÂN TRANG BIÊN LAI
+        /// </summary>
+        [HttpGet("search")]
+        public async Task<IActionResult> Search(
+            [FromQuery] string? keyword,
+            [FromQuery] string? status,
+            [FromQuery] DateTime? fromDate,
+            [FromQuery] DateTime? toDate,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            // Dùng LINQ Join để lấy tên sản phẩm (ProductName) đính kèm vào kết quả
+            var query = from r in _context.Receipts
+                        join p in _context.Products on r.ProductId equals p.Id into prodGroup
+                        from p in prodGroup.DefaultIfEmpty()
+                        select new
+                        {
+                            r.Id,
+                            r.SupplierId,
+                            r.ProductId,
+                            ProductName = p != null ? p.Name : "Sản phẩm đã xóa/Không xác định",
+                            r.Quantity,
+                            r.ImportPrice,
+                            r.ImageUrl,
+                            r.Note,
+                            r.Status,
+                            r.CreatedAt,
+                            r.ApprovedAt
+                        };
+
+            // Phân quyền: Admin xem tất cả, Nhà cung cấp (Supplier) chỉ xem biên lai của chính mình
+            if (!User.IsInRole("Admin"))
+            {
+                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+                query = query.Where(r => r.SupplierId == userId);
+            }
+
+            // Tiêu chí 1: Tìm theo từ khóa (Mã Supplier, Tên sản phẩm, hoặc Ghi chú)
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                var kw = keyword.ToLower().Trim();
+                query = query.Where(r =>
+                    r.SupplierId.ToLower().Contains(kw) ||
+                    r.ProductName.ToLower().Contains(kw) ||
+                    (r.Note != null && r.Note.ToLower().Contains(kw))
+                );
+            }
+
+            // Tiêu chí 2: Lọc theo trạng thái
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(r => r.Status == status);
+            }
+
+            // Tiêu chí 3: Lọc theo khoảng thời gian
+            if (fromDate.HasValue)
+            {
+                query = query.Where(r => r.CreatedAt >= fromDate.Value);
+            }
+            if (toDate.HasValue)
+            {
+                var end = toDate.Value.AddDays(1); // Lấy trọn vẹn ngày kết thúc
+                query = query.Where(r => r.CreatedAt < end);
+            }
+
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .OrderByDescending(r => r.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return Ok(new { items, totalCount, page, pageSize });
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetAll()
+        {
+            var receipts = await _context.Receipts.OrderByDescending(r => r.CreatedAt).ToListAsync();
+            return Ok(receipts);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create([FromBody] CreateReceiptDto dto)
+        {
+            var receipt = new Receipt
+            {
+                SupplierId = dto.SupplierId,
+                ProductId = dto.ProductId,
+                Quantity = dto.Quantity,
+                ImportPrice = dto.ImportPrice,
+                ImageUrl = dto.ImageUrl,
+                Note = dto.Specifications,
+                Status = "Pending",
+                CreatedAt = DateTime.Now
+            };
+            await _context.Receipts.AddAsync(receipt);
+            await _context.SaveChangesAsync();
+            return Ok(new { success = true, message = "Đã tạo biên lai thành công" });
+        }
+
+        [HttpPut("{id}/status")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateReceiptDto dto)
+        {
+            var receipt = await _context.Receipts.FindAsync(id);
+            if (receipt == null) return NotFound(new { message = "Không tìm thấy biên lai" });
+
+            // Chống việc duyệt lại một biên lai đã được duyệt
+            if (receipt.Status == "Approved")
+                return BadRequest(new { message = "Biên lai này đã được duyệt trước đó, không thể thay đổi!" });
+
+            receipt.Status = dto.Status;
+
+            if (dto.Status == "Approved")
+            {
+                receipt.ApprovedAt = DateTime.Now;
+                var product = await _context.Products.FindAsync(receipt.ProductId);
+                if (product != null)
+                {
+                    product.Stock += receipt.Quantity;
+                    product.ImportPrice = receipt.ImportPrice; // Cập nhật giá nhập mới nhất để tính lãi
+                    product.ImportedAt = DateTime.Now;
+                    product.Status = (ProductStatus)4; // ĐANG NHẬP (Sẽ hiện sau 24h nhờ AutoStatusWorker)
+                }
+            }
+            await _context.SaveChangesAsync();
+            return Ok(new { success = true, message = $"Đã cập nhật trạng thái thành: {dto.Status}" });
+        }
+    }
+
+    // ─── DTOs ──────────────────────────────────────────────────────────────────
+
+    public class CreateReceiptDto
+    {
+        public string SupplierId { get; set; } = "";
+        public int ProductId { get; set; }
+        public int Quantity { get; set; }
+        public decimal ImportPrice { get; set; }
+        public string? ImageUrl { get; set; }
+        public string? Specifications { get; set; }
+    }
+
+    public class UpdateReceiptDto
+    {
+        public string Status { get; set; } = "";
+    }
+}

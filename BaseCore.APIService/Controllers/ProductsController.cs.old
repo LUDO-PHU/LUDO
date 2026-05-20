@@ -1,0 +1,145 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using BaseCore.Entities;
+using BaseCore.Services;
+using BaseCore.Repository;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace BaseCore.APIService.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class ProductsController : ControllerBase
+    {
+        private readonly IProductService _productService;
+        private readonly BaseCoreSalesContext _context;
+
+        public ProductsController(IProductService productService, BaseCoreSalesContext context)
+        {
+            _productService = productService;
+            _context = context;
+        }
+
+        [HttpGet("search")]
+        public async Task<IActionResult> Search(
+            [FromQuery] string? keyword,
+            [FromQuery] int? categoryId,
+            [FromQuery] decimal? minPrice,
+            [FromQuery] decimal? maxPrice,
+            [FromQuery] string? supplierId,
+            [FromQuery] int? status,
+            [FromQuery] string? sortBy = "none",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            try
+            {
+                page = Math.Max(1, page);
+                var query = _context.Products.Include(p => p.Category).AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(keyword))
+                {
+                    var kw = keyword.ToLower().Trim();
+                    query = query.Where(p => p.Name.ToLower().Contains(kw) ||
+                                            (p.Specifications != null && p.Specifications.ToLower().Contains(kw)));
+                }
+
+                if (categoryId.HasValue && categoryId.Value > 0)
+                    query = query.Where(p => p.CategoryId == categoryId.Value);
+
+                if (minPrice.HasValue) query = query.Where(p => p.Price >= minPrice.Value);
+                if (maxPrice.HasValue) query = query.Where(p => p.Price <= maxPrice.Value);
+
+                if (status.HasValue && status.Value > 0)
+                    query = query.Where(p => (int)p.Status == status.Value);
+
+                if (!string.IsNullOrWhiteSpace(supplierId))
+                    query = query.Where(p => p.SupplierId == supplierId);
+
+                query = sortBy switch
+                {
+                    "priceAsc" => query.OrderBy(p => p.Price),
+                    "priceDesc" => query.OrderByDescending(p => p.Price),
+                    "discountDesc" => query.OrderByDescending(p => p.DiscountPercent),
+                    _ => query.OrderByDescending(p => p.Id)
+                };
+
+                var totalCount = await query.CountAsync();
+                var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+                return Ok(new { items, totalCount, page, pageSize });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var product = await _productService.GetProductByIdAsync(id);
+            if (product == null) return NotFound(new { message = "Sản phẩm không tồn tại" });
+            return Ok(product);
+        }
+
+        // ĐÃ SỬA: Cho phép cả Supplier thêm sản phẩm
+        [HttpPost]
+        [Authorize(Roles = "Admin,Supplier")]
+        public async Task<IActionResult> Create([FromBody] Product product)
+        {
+            product.Status = ProductStatus.Active;
+            product.Stock = 0;
+            product.ImportedAt = DateTime.Now;
+
+            // Xóa rỗng Navigation Property để tránh lỗi Entity Framework
+            product.Category = null;
+
+            var createdProduct = await _productService.CreateProductAsync(product);
+            return CreatedAtAction(nameof(GetById), new { id = createdProduct.Id }, createdProduct);
+        }
+
+        // ĐÃ SỬA: Cho phép cả Supplier sửa sản phẩm
+        [HttpPut("{id}")]
+        [Authorize(Roles = "Admin,Supplier")]
+        public async Task<IActionResult> Update(int id, [FromBody] Product productUpdate)
+        {
+            var existingProduct = await _productService.GetProductByIdAsync(id);
+            if (existingProduct == null)
+                return NotFound(new { message = "Sản phẩm không tồn tại" });
+
+            existingProduct.Name = productUpdate.Name;
+            existingProduct.Price = productUpdate.Price;
+            existingProduct.OldPrice = productUpdate.OldPrice;
+            existingProduct.DiscountPercent = productUpdate.DiscountPercent;
+            existingProduct.CategoryId = productUpdate.CategoryId;
+            existingProduct.Description = productUpdate.Description;
+            existingProduct.Specifications = productUpdate.Specifications;
+            existingProduct.ImageUrl = productUpdate.ImageUrl;
+            existingProduct.Brand = productUpdate.Brand;
+            existingProduct.Status = productUpdate.Status;
+
+            // TUYỆT ĐỐI KHÔNG CẬP NHẬT existingProduct.Stock ở đây.
+            await _productService.UpdateProductAsync(existingProduct);
+            return Ok(new { success = true, message = "Cập nhật thành công" });
+        }
+
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin,Supplier")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            try
+            {
+                await _productService.DeleteProductAsync(id);
+                return Ok(new { success = true, message = "Xóa sản phẩm thành công" });
+            }
+            catch (DbUpdateException)
+            {
+                return BadRequest(new { message = "Không thể xóa sản phẩm này vì đã có Đơn hàng hoặc Biên lai liên kết. Vui lòng chuyển trạng thái sang 'Ngừng kinh doanh'." });
+            }
+        }
+    }
+}

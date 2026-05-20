@@ -1,0 +1,36 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using BaseCore.Repository;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace BaseCore.APIService.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class BannersController : ControllerBase
+    {
+        private readonly BaseCoreSalesContext _context;
+
+        public BannersController(BaseCoreSalesContext context)
+        {
+            _context = context;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetActiveBanners([FromQuery] string position)
+        {
+            // Lấy các banner đang kích hoạt (IsActive = true)
+            var query = _context.Banners.Where(b => b.IsActive);
+
+            // Lọc theo vị trí (Top, Left, Right)
+            if (!string.IsNullOrEmpty(position))
+            {
+                query = query.Where(b => b.Position == position);
+            }
+
+            var banners = await query.ToListAsync();
+            return Ok(banners);
+        }
+    }
+}

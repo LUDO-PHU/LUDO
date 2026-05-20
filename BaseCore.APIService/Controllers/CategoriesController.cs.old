@@ -1,0 +1,178 @@
+using BaseCore.Entities;
+using BaseCore.Repository;
+using BaseCore.Repository.EFCore;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace BaseCore.APIService.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    [Authorize(Roles = "Admin")]
+    public class CategoriesController : ControllerBase
+    {
+        private readonly ICategoryRepositoryEF _categoryRepository;
+        private readonly BaseCoreSalesContext _context;
+
+        public CategoriesController(ICategoryRepositoryEF categoryRepository, BaseCoreSalesContext context)
+        {
+            _categoryRepository = categoryRepository;
+            _context = context;
+        }
+
+        [HttpGet("search")]
+        [AllowAnonymous]
+        public async Task<IActionResult> Search(
+            [FromQuery] string? keyword,
+            [FromQuery] string? sortBy = "newest", // ĐÃ THÊM: Biến điều khiển sắp xếp
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            var query = _context.Categories.AsQueryable();
+
+            // 1. Xử lý tìm kiếm
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                var kw = keyword.ToLower().Trim();
+                query = query.Where(c =>
+                    (c.Name != null && c.Name.ToLower().Contains(kw)) ||
+                    (c.Description != null && c.Description.ToLower().Contains(kw))
+                );
+            }
+
+            // 2. Xử lý sắp xếp (Sorting)
+            switch (sortBy?.ToLower())
+            {
+                case "oldest":
+                    query = query.OrderBy(c => c.Id);
+                    break;
+                case "name_asc":
+                    query = query.OrderBy(c => c.Name);
+                    break;
+                case "name_desc":
+                    query = query.OrderByDescending(c => c.Name);
+                    break;
+                case "count_desc": // Ưu tiên danh mục có nhiều sản phẩm nhất lên đầu
+                    query = query.OrderByDescending(c => _context.Products.Count(p => p.CategoryId == c.Id));
+                    break;
+                case "newest":
+                default:
+                    query = query.OrderByDescending(c => c.Id);
+                    break;
+            }
+
+            var totalCount = await query.CountAsync();
+
+            var categories = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(c => new
+                {
+                    c.Id,
+                    c.Name,
+                    c.Description,
+                    ProductCount = _context.Products.Count(p => p.CategoryId == c.Id)
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                items = categories,
+                totalCount,
+                page,
+                pageSize,
+                totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+            });
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetAll()
+        {
+            var categories = await _categoryRepository.GetAllAsync();
+            return Ok(categories);
+        }
+
+        [HttpGet("{id:int}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var category = await _categoryRepository.GetByIdAsync(id);
+            if (category == null)
+                return NotFound(new { message = "Không tìm thấy danh mục" });
+
+            return Ok(category);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create([FromBody] CategoryDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Name))
+                return BadRequest(new { message = "Tên danh mục không được để trống" });
+
+            var existing = await _categoryRepository.GetByNameAsync(dto.Name);
+            if (existing != null)
+                return BadRequest(new { message = "Tên danh mục này đã tồn tại" });
+
+            var category = new Category
+            {
+                Name = dto.Name,
+                Description = dto.Description ?? ""
+            };
+
+            await _categoryRepository.AddAsync(category);
+            return CreatedAtAction(nameof(GetById), new { id = category.Id }, category);
+        }
+
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, [FromBody] CategoryDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Name))
+                return BadRequest(new { message = "Tên danh mục không được để trống" });
+
+            var category = await _categoryRepository.GetByIdAsync(id);
+            if (category == null)
+                return NotFound(new { message = "Không tìm thấy danh mục" });
+
+            if (category.Name != dto.Name)
+            {
+                var existing = await _categoryRepository.GetByNameAsync(dto.Name);
+                if (existing != null)
+                    return BadRequest(new { message = "Tên danh mục này đã bị trùng" });
+            }
+
+            category.Name = dto.Name;
+            category.Description = dto.Description ?? category.Description;
+
+            await _categoryRepository.UpdateAsync(category);
+            return Ok(new { message = "Cập nhật thành công", category });
+        }
+
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var category = await _categoryRepository.GetByIdAsync(id);
+            if (category == null)
+                return NotFound(new { message = "Không tìm thấy danh mục" });
+
+            var productCount = await _context.Products.CountAsync(p => p.CategoryId == id);
+            if (productCount > 0)
+            {
+                return BadRequest(new { message = $"Không thể xóa! Danh mục này đang chứa {productCount} sản phẩm linh kiện." });
+            }
+
+            await _categoryRepository.DeleteAsync(category);
+            return Ok(new { message = "Xóa danh mục thành công" });
+        }
+    }
+
+    public class CategoryDto
+    {
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+    }
+}

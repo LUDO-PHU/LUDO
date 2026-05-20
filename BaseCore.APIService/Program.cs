@@ -1,0 +1,603 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using BaseCore.APIService.Json;
+using BaseCore.Repository;
+using BaseCore.Repository.EFCore;
+using BaseCore.Services;
+using BaseCore.APIService.Services; // QUAN TRỌNG: Thêm namespace này để nhận diện AutoStatusWorker
+using System.Text;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
+// --- 1. Cấu hình Controller và JSON ---
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+        // SỬA LỖI 500: Ngắt vòng lặp vô hạn JSON khi có quan hệ cha-con
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    });
+
+builder.Services.AddEndpointsApiExplorer();
+
+// --- 2. Cấu hình Swagger ---
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "BaseCore API Service",
+        Version = "v1",
+        Description = "Business Logic Microservice - Products, Categories, Orders, Receipts"
+    });
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Please enter JWT token (Format: Bearer [token])",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        BearerFormat = "JWT",
+        Scheme = "bearer"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+
+// --- 3. Cấu hình CORS (Cho phép React truy cập) ---
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+    });
+});
+
+// --- 4. Cấu hình Database (SQL Server) ---
+builder.Services.AddDbContext<BaseCoreSalesContext>(options =>
+{
+    options.UseSqlServer(builder.Configuration.GetConnectionString("ConnectedDb"));
+});
+
+// --- 5. Đăng ký Repositories ---
+builder.Services.AddScoped<IProductRepositoryEF, ProductRepositoryEF>();
+builder.Services.AddScoped<ICategoryRepositoryEF, CategoryRepositoryEF>();
+builder.Services.AddScoped<IOrderRepositoryEF, OrderRepositoryEF>();
+builder.Services.AddScoped<IOrderDetailRepositoryEF, OrderDetailRepositoryEF>();
+builder.Services.AddScoped<IUserRepositoryEF, UserRepositoryEF>();
+builder.Services.AddScoped<ISupplierRepositoryEF, SupplierRepositoryEF>();
+builder.Services.AddScoped<IReceiptRepositoryEF, ReceiptRepositoryEF>();
+builder.Services.AddScoped<ICartRepository, CartRepository>();
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<IReviewRepositoryEF, ReviewRepositoryEF>();
+
+// --- 6. Đăng ký Services ---
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ISupplierService, SupplierService>();
+builder.Services.AddScoped<IReceiptService, ReceiptService>();
+builder.Services.AddScoped<ICartService, CartService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IReviewService, ReviewService>();
+builder.Services.AddScoped<ISupplierRequestService, SupplierRequestService>();
+builder.Services.AddScoped<IRevenueService, RevenueService>();
+
+// --- 7. ĐĂNG KÝ ROBOT CHẠY NGẦM (AutoStatusWorker) ---
+// Worker chỉ tự động cập nhật biên lai nhập kho. Đơn hàng phải do Admin/User xác nhận theo luồng nghiệp vụ.
+builder.Services.AddHostedService<AutoStatusWorker>();
+
+// --- 8. Cấu hình JWT Authentication ---
+var key = Encoding.ASCII.GetBytes(builder.Configuration["Jwt:SecretKey"] ?? "YourSecretKeyForAuthenticationShouldBeLongEnough");
+builder.Services.AddAuthentication(x =>
+{
+    x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(x =>
+{
+    x.RequireHttpsMetadata = false;
+    x.SaveToken = true;
+    x.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ValidateIssuer = false,
+        ValidateAudience = false
+    };
+});
+
+var app = builder.Build();
+
+// --- 9. Tự động khởi tạo Database (Auto Migrate) ---
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<BaseCoreSalesContext>();
+    await EnsureOrderCustomerFieldsAsync(db);
+    await EnsureSupplierAdminSchemaAsync(db);
+    await EnsureProductImagesSchemaAsync(db);
+    // Lưu ý: Nếu dùng Migration, bạn có thể thay EnsureCreated() bằng db.Database.Migrate()
+    // db.Database.EnsureCreated();
+}
+
+// --- 10. Cấu hình HTTP Request Pipeline ---
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseStaticFiles();
+app.UseCors("AllowAll");
+
+app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated == true)
+    {
+        var rawUserId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(rawUserId, out var userId))
+        {
+            using var scope = context.RequestServices.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<BaseCoreSalesContext>();
+            var user = await db.Users.FindAsync(userId);
+
+            if (user == null || !user.IsActive)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsJsonAsync(new { success = false, message = "Account is inactive" });
+                return;
+            }
+
+            if (user.Role == BaseCore.Entities.Role.Supplier)
+            {
+                var supplierActive = await db.Suppliers.AnyAsync(s => s.UserId == userId && s.IsActive);
+                if (!supplierActive)
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsJsonAsync(new { success = false, message = "Supplier account is inactive" });
+                    return;
+                }
+            }
+        }
+    }
+
+    await next();
+});
+app.UseAuthorization();
+
+app.MapControllers();
+
+Console.WriteLine("====================================================");
+Console.WriteLine("🚀 BaseCore API Service is running!");
+Console.WriteLine("📍 Port: 5001");
+Console.WriteLine("🛠️  AutoStatusWorker is monitoring receipts only...");
+Console.WriteLine("====================================================");
+
+app.Run("http://localhost:5001");
+
+static async Task EnsureOrderCustomerFieldsAsync(BaseCoreSalesContext db)
+{
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'[dbo].[Orders]', N'CustomerName') IS NULL
+        ALTER TABLE [dbo].[Orders] ADD [CustomerName] nvarchar(max) NOT NULL CONSTRAINT [DF_Orders_CustomerName] DEFAULT N'';
+
+    IF COL_LENGTH(N'[dbo].[Orders]', N'CustomerPhone') IS NULL
+        ALTER TABLE [dbo].[Orders] ADD [CustomerPhone] nvarchar(max) NOT NULL CONSTRAINT [DF_Orders_CustomerPhone] DEFAULT N'';
+
+    IF COL_LENGTH(N'[dbo].[Orders]', N'ShippingAddress') IS NULL
+        ALTER TABLE [dbo].[Orders] ADD [ShippingAddress] nvarchar(max) NOT NULL CONSTRAINT [DF_Orders_ShippingAddress] DEFAULT N'';
+
+    IF COL_LENGTH(N'[dbo].[Orders]', N'Note') IS NULL
+        ALTER TABLE [dbo].[Orders] ADD [Note] nvarchar(max) NOT NULL CONSTRAINT [DF_Orders_Note] DEFAULT N'';
+END");
+}
+
+static async Task EnsureProductImagesSchemaAsync(BaseCoreSalesContext db)
+{
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[ProductImages]', N'U') IS NULL AND OBJECT_ID(N'[dbo].[Products]', N'U') IS NOT NULL
+BEGIN
+    CREATE TABLE [dbo].[ProductImages](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_ProductImages] PRIMARY KEY,
+        [ProductId] int NOT NULL,
+        [ImageUrl] nvarchar(max) NOT NULL,
+        [AltText] nvarchar(max) NOT NULL CONSTRAINT [DF_ProductImages_AltText] DEFAULT N'',
+        [IsPrimary] bit NOT NULL CONSTRAINT [DF_ProductImages_IsPrimary] DEFAULT 0,
+        [SortOrder] int NOT NULL CONSTRAINT [DF_ProductImages_SortOrder] DEFAULT 0,
+        [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_ProductImages_CreatedAt] DEFAULT SYSUTCDATETIME()
+    );
+END
+
+IF OBJECT_ID(N'[dbo].[ProductImages]', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'[dbo].[ProductImages]', N'AltText') IS NULL
+        ALTER TABLE [dbo].[ProductImages] ADD [AltText] nvarchar(max) NOT NULL CONSTRAINT [DF_ProductImages_AltText] DEFAULT N'';
+
+    IF COL_LENGTH(N'[dbo].[ProductImages]', N'IsPrimary') IS NULL
+        ALTER TABLE [dbo].[ProductImages] ADD [IsPrimary] bit NOT NULL CONSTRAINT [DF_ProductImages_IsPrimary] DEFAULT 0;
+
+    IF COL_LENGTH(N'[dbo].[ProductImages]', N'SortOrder') IS NULL
+        ALTER TABLE [dbo].[ProductImages] ADD [SortOrder] int NOT NULL CONSTRAINT [DF_ProductImages_SortOrder] DEFAULT 0;
+
+    IF COL_LENGTH(N'[dbo].[ProductImages]', N'CreatedAt') IS NULL
+        ALTER TABLE [dbo].[ProductImages] ADD [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_ProductImages_CreatedAt] DEFAULT SYSUTCDATETIME();
+END
+");
+
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[ProductImages]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ProductImages_ProductId' AND object_id = OBJECT_ID(N'[dbo].[ProductImages]'))
+        EXEC(N'CREATE INDEX [IX_ProductImages_ProductId] ON [dbo].[ProductImages]([ProductId])');
+END
+");
+
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[ProductImages]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[dbo].[Products]', N'U') IS NOT NULL
+   AND COL_LENGTH(N'[dbo].[Products]', N'ImageUrl') IS NOT NULL
+BEGIN
+    INSERT INTO [dbo].[ProductImages]([ProductId], [ImageUrl], [AltText], [IsPrimary], [SortOrder], [CreatedAt])
+    SELECT p.[Id], p.[ImageUrl], COALESCE(NULLIF(p.[NameVi], N''), p.[ImageUrl]), 1, -1, COALESCE(p.[CreatedAt], SYSUTCDATETIME())
+    FROM [dbo].[Products] p
+    WHERE p.[ImageUrl] IS NOT NULL
+      AND LTRIM(RTRIM(p.[ImageUrl])) <> N''
+      AND NOT EXISTS (
+          SELECT 1
+          FROM [dbo].[ProductImages] pi
+          WHERE pi.[ProductId] = p.[Id]
+            AND pi.[ImageUrl] = p.[ImageUrl]
+      );
+
+    ;WITH RankedImages AS (
+        SELECT
+            pi.[Id],
+            pi.[IsPrimary],
+            ROW_NUMBER() OVER (PARTITION BY pi.[ProductId] ORDER BY pi.[IsPrimary] DESC, pi.[SortOrder], pi.[Id]) AS RowNo,
+            MAX(CASE WHEN pi.[IsPrimary] = 1 THEN 1 ELSE 0 END) OVER (PARTITION BY pi.[ProductId]) AS HasPrimary
+        FROM [dbo].[ProductImages] pi
+    )
+    UPDATE RankedImages
+    SET [IsPrimary] = 1
+    WHERE [RowNo] = 1 AND [HasPrimary] = 0;
+END
+");
+}
+
+static async Task EnsureSupplierAdminSchemaAsync(BaseCoreSalesContext db)
+{
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[Suppliers]', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'[dbo].[Suppliers]', N'CategoryId') IS NULL
+        ALTER TABLE [dbo].[Suppliers] ADD [CategoryId] int NULL;
+END
+
+IF OBJECT_ID(N'[dbo].[Products]', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'[dbo].[Products]', N'SupplierId') IS NULL
+        ALTER TABLE [dbo].[Products] ADD [SupplierId] int NULL;
+
+    IF COL_LENGTH(N'[dbo].[Products]', N'ImportPrice') IS NULL
+        ALTER TABLE [dbo].[Products] ADD [ImportPrice] decimal(18,2) NOT NULL DEFAULT 0;
+
+    IF COL_LENGTH(N'[dbo].[Products]', N'Specifications') IS NULL
+        ALTER TABLE [dbo].[Products] ADD [Specifications] nvarchar(max) NOT NULL DEFAULT N'';
+
+    IF COL_LENGTH(N'[dbo].[Products]', N'Status') IS NULL
+        ALTER TABLE [dbo].[Products] ADD [Status] nvarchar(max) NOT NULL DEFAULT N'InStock';
+
+    IF COL_LENGTH(N'[dbo].[Products]', N'Brand') IS NULL
+        ALTER TABLE [dbo].[Products] ADD [Brand] nvarchar(max) NOT NULL DEFAULT N'';
+
+    IF COL_LENGTH(N'[dbo].[Products]', N'Color') IS NULL
+        ALTER TABLE [dbo].[Products] ADD [Color] nvarchar(max) NOT NULL DEFAULT N'';
+
+    IF COL_LENGTH(N'[dbo].[Products]', N'Condition') IS NULL
+        ALTER TABLE [dbo].[Products] ADD [Condition] nvarchar(max) NOT NULL DEFAULT N'';
+
+    IF COL_LENGTH(N'[dbo].[Products]', N'UpdatedAt') IS NULL
+        ALTER TABLE [dbo].[Products] ADD [UpdatedAt] datetime2 NULL;
+END
+
+IF OBJECT_ID(N'[dbo].[Receipts]', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'[dbo].[Receipts]', N'AdminId') IS NULL
+        ALTER TABLE [dbo].[Receipts] ADD [AdminId] int NULL;
+
+    IF COL_LENGTH(N'[dbo].[Receipts]', N'RequestId') IS NULL
+        ALTER TABLE [dbo].[Receipts] ADD [RequestId] int NULL;
+
+    IF COL_LENGTH(N'[dbo].[Receipts]', N'ReceiptType') IS NULL
+        ALTER TABLE [dbo].[Receipts] ADD [ReceiptType] int NOT NULL DEFAULT 0;
+
+    IF COL_LENGTH(N'[dbo].[Receipts]', N'Specifications') IS NULL
+        ALTER TABLE [dbo].[Receipts] ADD [Specifications] nvarchar(max) NOT NULL DEFAULT N'';
+
+    IF COL_LENGTH(N'[dbo].[Receipts]', N'Note') IS NULL
+        ALTER TABLE [dbo].[Receipts] ADD [Note] nvarchar(max) NOT NULL DEFAULT N'';
+END
+
+IF OBJECT_ID(N'[dbo].[Notifications]', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'[dbo].[Notifications]', N'SupplierId') IS NULL
+        ALTER TABLE [dbo].[Notifications] ADD [SupplierId] int NULL;
+
+    IF COL_LENGTH(N'[dbo].[Notifications]', N'Type') IS NULL
+        ALTER TABLE [dbo].[Notifications] ADD [Type] nvarchar(max) NOT NULL DEFAULT N'';
+
+    IF COL_LENGTH(N'[dbo].[Notifications]', N'RelatedId') IS NULL
+        ALTER TABLE [dbo].[Notifications] ADD [RelatedId] int NULL;
+END
+");
+
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[SupplierRequests]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[SupplierRequests](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_SupplierRequests] PRIMARY KEY,
+        [AdminId] int NOT NULL,
+        [SupplierId] int NOT NULL,
+        [CategoryId] int NOT NULL,
+        [ProductId] int NULL,
+        [RequestedProductName] nvarchar(max) NOT NULL CONSTRAINT [DF_SupplierRequests_RequestedProductName] DEFAULT N'',
+        [Quantity] int NOT NULL,
+        [SuggestedPrice] decimal(18,2) NOT NULL,
+        [Note] nvarchar(max) NOT NULL CONSTRAINT [DF_SupplierRequests_Note] DEFAULT N'',
+        [Status] int NOT NULL CONSTRAINT [DF_SupplierRequests_Status] DEFAULT 0,
+        [RejectionReason] nvarchar(max) NOT NULL CONSTRAINT [DF_SupplierRequests_RejectionReason] DEFAULT N'',
+        [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_SupplierRequests_CreatedAt] DEFAULT SYSUTCDATETIME(),
+        [UpdatedAt] datetime2 NULL
+    );
+END
+");
+
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[StockBatches]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[StockBatches](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_StockBatches] PRIMARY KEY,
+        [ProductId] int NOT NULL,
+        [SupplierId] int NOT NULL,
+        [ReceiptId] int NULL,
+        [QuantityImported] int NOT NULL,
+        [QuantityRemaining] int NOT NULL,
+        [UnitImportPrice] decimal(18,2) NOT NULL,
+        [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_StockBatches_CreatedAt] DEFAULT SYSUTCDATETIME()
+    );
+END
+");
+
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[RevenueTransactions]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[RevenueTransactions](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_RevenueTransactions] PRIMARY KEY,
+        [OwnerType] nvarchar(50) NOT NULL,
+        [OwnerId] int NULL,
+        [Amount] decimal(18,2) NOT NULL,
+        [TransactionType] nvarchar(50) NOT NULL,
+        [ReferenceType] nvarchar(50) NOT NULL,
+        [ReferenceId] int NOT NULL,
+        [Note] nvarchar(max) NOT NULL CONSTRAINT [DF_RevenueTransactions_Note] DEFAULT N'',
+        [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_RevenueTransactions_CreatedAt] DEFAULT SYSUTCDATETIME()
+    );
+END
+");
+
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[OrderStockAllocations]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[OrderStockAllocations](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_OrderStockAllocations] PRIMARY KEY,
+        [OrderDetailId] int NOT NULL,
+        [StockBatchId] int NOT NULL,
+        [Quantity] int NOT NULL,
+        [UnitImportPrice] decimal(18,2) NOT NULL
+    );
+END
+");
+
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[SupplierRequests]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_SupplierRequests_SupplierId' AND object_id = OBJECT_ID(N'[dbo].[SupplierRequests]'))
+        EXEC(N'CREATE INDEX [IX_SupplierRequests_SupplierId] ON [dbo].[SupplierRequests]([SupplierId])');
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_SupplierRequests_CategoryId' AND object_id = OBJECT_ID(N'[dbo].[SupplierRequests]'))
+        EXEC(N'CREATE INDEX [IX_SupplierRequests_CategoryId] ON [dbo].[SupplierRequests]([CategoryId])');
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_SupplierRequests_ProductId' AND object_id = OBJECT_ID(N'[dbo].[SupplierRequests]'))
+        EXEC(N'CREATE INDEX [IX_SupplierRequests_ProductId] ON [dbo].[SupplierRequests]([ProductId])');
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_SupplierRequests_Status' AND object_id = OBJECT_ID(N'[dbo].[SupplierRequests]'))
+        EXEC(N'CREATE INDEX [IX_SupplierRequests_Status] ON [dbo].[SupplierRequests]([Status])');
+END
+
+IF OBJECT_ID(N'[dbo].[StockBatches]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_StockBatches_ProductId' AND object_id = OBJECT_ID(N'[dbo].[StockBatches]'))
+        EXEC(N'CREATE INDEX [IX_StockBatches_ProductId] ON [dbo].[StockBatches]([ProductId])');
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_StockBatches_SupplierId' AND object_id = OBJECT_ID(N'[dbo].[StockBatches]'))
+        EXEC(N'CREATE INDEX [IX_StockBatches_SupplierId] ON [dbo].[StockBatches]([SupplierId])');
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_StockBatches_ReceiptId' AND object_id = OBJECT_ID(N'[dbo].[StockBatches]'))
+        EXEC(N'CREATE INDEX [IX_StockBatches_ReceiptId] ON [dbo].[StockBatches]([ReceiptId])');
+END
+
+IF OBJECT_ID(N'[dbo].[RevenueTransactions]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_RevenueTransactions_Reference' AND object_id = OBJECT_ID(N'[dbo].[RevenueTransactions]'))
+        EXEC(N'CREATE INDEX [IX_RevenueTransactions_Reference] ON [dbo].[RevenueTransactions]([ReferenceId])');
+END
+
+IF OBJECT_ID(N'[dbo].[OrderStockAllocations]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_OrderStockAllocations_OrderDetailId' AND object_id = OBJECT_ID(N'[dbo].[OrderStockAllocations]'))
+        EXEC(N'CREATE INDEX [IX_OrderStockAllocations_OrderDetailId] ON [dbo].[OrderStockAllocations]([OrderDetailId])');
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_OrderStockAllocations_StockBatchId' AND object_id = OBJECT_ID(N'[dbo].[OrderStockAllocations]'))
+        EXEC(N'CREATE INDEX [IX_OrderStockAllocations_StockBatchId] ON [dbo].[OrderStockAllocations]([StockBatchId])');
+END
+");
+
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[dbo].[Categories]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[dbo].[Suppliers]', N'U') IS NOT NULL
+BEGIN
+DECLARE @DefaultPasswordHash nvarchar(max) = N'8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92';
+DECLARE @SeedSuppliers TABLE(UserName nvarchar(50), FullName nvarchar(max), Email nvarchar(max), Phone nvarchar(max), CompanyName nvarchar(max), CategoryId int);
+INSERT INTO @SeedSuppliers(UserName, FullName, Email, Phone, CompanyName, CategoryId)
+VALUES
+(N'supplier_screen', N'Supplier Màn hình', N'supplier_screen@econent.com', N'0988300001', N'Công ty Màn hình Econent', 1),
+(N'supplier_battery', N'Supplier Pin', N'supplier_battery@econent.com', N'0988300002', N'Công ty Pin Econent', 2),
+(N'supplier_camera', N'Supplier Camera', N'supplier_camera@econent.com', N'0988300003', N'Công ty Camera Econent', 3),
+(N'supplier_case', N'Supplier Vỏ máy', N'supplier_case@econent.com', N'0988300004', N'Công ty Vỏ máy Econent', 4),
+(N'supplier_cable', N'Supplier Cáp', N'supplier_cable@econent.com', N'0988300005', N'Công ty Cáp Econent', 5),
+(N'supplier_speaker', N'Supplier Loa', N'supplier_speaker@econent.com', N'0988300006', N'Công ty Loa Econent', 6),
+(N'supplier_mainboard', N'Supplier Mainboard', N'supplier_mainboard@econent.com', N'0988300007', N'Công ty Mainboard Econent', 7),
+(N'supplier_chip', N'Supplier Chip IC', N'supplier_chip@econent.com', N'0988300008', N'Công ty Chip IC Econent', 8);
+
+INSERT INTO [dbo].[Users]([UserName], [PasswordHash], [FullName], [Email], [Phone], [Role], [IsActive], [CreatedAt])
+SELECT seed.UserName, @DefaultPasswordHash, seed.FullName, seed.Email, seed.Phone, 2, 1, SYSUTCDATETIME()
+FROM @SeedSuppliers seed
+WHERE EXISTS (SELECT 1 FROM [dbo].[Categories] c WHERE c.Id = seed.CategoryId)
+  AND NOT EXISTS (SELECT 1 FROM [dbo].[Users] u WHERE u.UserName = seed.UserName);
+
+IF COL_LENGTH(N'[dbo].[Suppliers]', N'CategoryId') IS NOT NULL
+BEGIN
+    INSERT INTO [dbo].[Suppliers]([UserId], [CompanyName], [ContactName], [Email], [Phone], [Address], [CategoryId], [IsActive], [CreatedAt])
+    SELECT u.Id, seed.CompanyName, seed.FullName, seed.Email, seed.Phone, N'Việt Nam', seed.CategoryId, 1, SYSUTCDATETIME()
+    FROM @SeedSuppliers seed
+    INNER JOIN [dbo].[Users] u ON u.UserName = seed.UserName
+    WHERE EXISTS (SELECT 1 FROM [dbo].[Categories] c WHERE c.Id = seed.CategoryId)
+      AND NOT EXISTS (SELECT 1 FROM [dbo].[Suppliers] s WHERE s.UserId = u.Id);
+
+    UPDATE s
+    SET s.CategoryId = seed.CategoryId
+    FROM [dbo].[Suppliers] s
+    INNER JOIN [dbo].[Users] u ON u.Id = s.UserId
+    INNER JOIN @SeedSuppliers seed ON seed.UserName = u.UserName
+    WHERE s.CategoryId IS NULL;
+
+    UPDATE s
+    SET s.CategoryId = 1
+    FROM [dbo].[Suppliers] s
+    WHERE s.Id = 1 AND s.CategoryId IS NULL AND EXISTS (SELECT 1 FROM [dbo].[Categories] WHERE Id = 1);
+
+    DECLARE @LegacySupplierId int = NULL;
+    DECLARE @ScreenSupplierId int = NULL;
+
+    SELECT TOP 1 @LegacySupplierId = s.Id
+    FROM [dbo].[Suppliers] s
+    INNER JOIN [dbo].[Users] u ON u.Id = s.UserId
+    WHERE u.UserName = N'supplier';
+
+    SELECT TOP 1 @ScreenSupplierId = s.Id
+    FROM [dbo].[Suppliers] s
+    INNER JOIN [dbo].[Users] u ON u.Id = s.UserId
+    WHERE u.UserName = N'supplier_screen';
+
+    IF @LegacySupplierId IS NOT NULL
+       AND @ScreenSupplierId IS NOT NULL
+       AND @LegacySupplierId <> @ScreenSupplierId
+    BEGIN
+        IF OBJECT_ID(N'[dbo].[Products]', N'U') IS NOT NULL
+            UPDATE [dbo].[Products]
+            SET [SupplierId] = @ScreenSupplierId
+            WHERE [SupplierId] = @LegacySupplierId;
+
+        IF OBJECT_ID(N'[dbo].[Receipts]', N'U') IS NOT NULL
+            UPDATE [dbo].[Receipts]
+            SET [SupplierId] = @ScreenSupplierId
+            WHERE [SupplierId] = @LegacySupplierId;
+
+        IF OBJECT_ID(N'[dbo].[StockBatches]', N'U') IS NOT NULL
+            UPDATE [dbo].[StockBatches]
+            SET [SupplierId] = @ScreenSupplierId
+            WHERE [SupplierId] = @LegacySupplierId;
+
+        IF OBJECT_ID(N'[dbo].[SupplierRequests]', N'U') IS NOT NULL
+            UPDATE [dbo].[SupplierRequests]
+            SET [SupplierId] = @ScreenSupplierId
+            WHERE [SupplierId] = @LegacySupplierId;
+
+        IF OBJECT_ID(N'[dbo].[Notifications]', N'U') IS NOT NULL
+            UPDATE [dbo].[Notifications]
+            SET [SupplierId] = @ScreenSupplierId
+            WHERE [SupplierId] = @LegacySupplierId;
+
+        UPDATE [dbo].[Suppliers]
+        SET [IsActive] = 0, [UpdatedAt] = SYSUTCDATETIME()
+        WHERE [Id] = @LegacySupplierId;
+
+        UPDATE [dbo].[Users]
+        SET [IsActive] = 0, [UpdatedAt] = SYSUTCDATETIME()
+        WHERE [UserName] = N'supplier';
+    END
+
+    IF OBJECT_ID(N'[dbo].[Products]', N'U') IS NOT NULL
+    BEGIN
+    UPDATE p
+    SET p.SupplierId = s.Id
+    FROM [dbo].[Products] p
+    OUTER APPLY (
+        SELECT TOP 1 sp.Id
+        FROM [dbo].[Suppliers] sp
+        WHERE sp.CategoryId = p.CategoryId AND sp.IsActive = 1
+        ORDER BY sp.Id
+    ) s
+    WHERE s.Id IS NOT NULL
+      AND (
+          p.SupplierId IS NULL
+          OR NOT EXISTS (
+              SELECT 1
+              FROM [dbo].[Suppliers] currentSupplier
+              WHERE currentSupplier.Id = p.SupplierId
+                AND currentSupplier.CategoryId = p.CategoryId
+          )
+      );
+    END
+END
+
+IF OBJECT_ID(N'[dbo].[StockBatches]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[dbo].[Products]', N'U') IS NOT NULL
+BEGIN
+    INSERT INTO [dbo].[StockBatches]([ProductId], [SupplierId], [ReceiptId], [QuantityImported], [QuantityRemaining], [UnitImportPrice], [CreatedAt])
+    SELECT p.Id, COALESCE(p.SupplierId, s.Id), NULL, p.Stock, p.Stock, p.ImportPrice, p.CreatedAt
+    FROM [dbo].[Products] p
+    OUTER APPLY (
+        SELECT TOP 1 sp.Id
+        FROM [dbo].[Suppliers] sp
+        WHERE sp.CategoryId = p.CategoryId AND sp.IsActive = 1
+        ORDER BY sp.Id
+    ) s
+    WHERE p.Stock > 0
+      AND COALESCE(p.SupplierId, s.Id) IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM [dbo].[StockBatches] b WHERE b.ProductId = p.Id);
+END
+END
+");
+}
