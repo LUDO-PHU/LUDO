@@ -15,6 +15,7 @@ const AdminLayout = () => {
         { path: '/admin', icon: '📊', label: 'Tổng quan', exact: true },
         { path: '/admin/products', icon: '📦', label: 'Sản phẩm' },
         { path: '/admin/orders', icon: '🛒', label: 'Đơn hàng' },
+        { path: '/admin/returns', icon: '📦', label: 'Trả hàng' },
         { path: '/admin/receipts', icon: '🧾', label: 'Biên lai' },
         { path: '/admin/suppliers', icon: '🏢', label: 'Nhà cung cấp' },
         { path: '/admin/categories', icon: '📂', label: 'Danh mục' },
@@ -37,7 +38,7 @@ const AdminLayout = () => {
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: '#020617', width: '100%' }}>
-            {/* ── SIDEBAR ── */}
+            {    }
             <div style={{
                 width: '256px', flexShrink: 0,
                 background: isSupplier
@@ -47,7 +48,7 @@ const AdminLayout = () => {
                 position: 'sticky', top: 0, height: '100vh',
                 boxShadow: '4px 0 28px rgba(34,211,238,0.16)', zIndex: 100,
             }}>
-                {/* Logo */}
+                {  }
                 <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{
@@ -67,7 +68,7 @@ const AdminLayout = () => {
                     </div>
                 </div>
 
-                {/* Menu */}
+                {  }
                 <div style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto' }}>
                     {menus.map(item => {
                         const active = isActive(item);
@@ -95,7 +96,7 @@ const AdminLayout = () => {
                     })}
                 </div>
 
-                {/* User Info & Logout */}
+                {     }
                 <div style={{ padding: '16px 16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                         <div style={{
@@ -105,11 +106,11 @@ const AdminLayout = () => {
                             justifyContent: 'center', fontWeight: '800', fontSize: '16px',
                             flexShrink: 0,
                         }}>
-                            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                            {(user?.name || user?.fullName || user?.userName || user?.username || 'U').trim().charAt(0).toUpperCase()}
                         </div>
                         <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff', lineHeight: 1.35, overflowWrap: 'anywhere' }}>
-                                {user?.name || user?.username}
+                                {user?.name || user?.fullName || user?.userName || user?.username || 'Người dùng'}
                             </div>
                             <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', marginTop: '1px', lineHeight: 1.35 }}>
                                 {isAdmin ? '🛡 Quản trị viên' : '🏢 Nhà cung cấp'}
@@ -132,7 +133,7 @@ const AdminLayout = () => {
                 </div>
             </div>
 
-            {/* ── MAIN CONTENT ── */}
+            {     }
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                 <Outlet />
             </div>

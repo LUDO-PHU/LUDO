@@ -22,7 +22,7 @@
         }
       ],
       "UpstreamPathTemplate": "/api/users/{everything}",
-      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE", "OPTIONS" ]
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS" ]
     },
     {
       "DownstreamPathTemplate": "/api/users",
@@ -157,6 +157,30 @@
       "UpstreamHttpMethod": [ "GET", "POST", "OPTIONS" ]
     },
     {
+      "DownstreamPathTemplate": "/api/returns/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ],
+      "UpstreamPathTemplate": "/api/returns/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE", "OPTIONS" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/returns",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ],
+      "UpstreamPathTemplate": "/api/returns",
+      "UpstreamHttpMethod": [ "GET", "POST", "OPTIONS" ]
+    },
+    {
       "DownstreamPathTemplate": "/api/dashboard/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
@@ -265,6 +289,18 @@
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS" ]
     },
     {
+      "DownstreamPathTemplate": "/api/reviews",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ],
+      "UpstreamPathTemplate": "/api/reviews",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS" ]
+    },
+    {
       "DownstreamPathTemplate": "/api/notifications/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
@@ -311,6 +347,18 @@
       ],
       "UpstreamPathTemplate": "/api/banners",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS" ]
+    },
+    {
+      "DownstreamPathTemplate": "/uploads/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ],
+      "UpstreamPathTemplate": "/uploads/{everything}",
+      "UpstreamHttpMethod": [ "GET", "OPTIONS" ]
     },
     {
       "DownstreamPathTemplate": "/images/{everything}",

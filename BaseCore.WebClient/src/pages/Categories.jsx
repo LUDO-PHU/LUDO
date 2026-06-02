@@ -21,7 +21,7 @@ const Categories = () => {
     const [editingId, setEditingId] = useState(null);
     const [formData, setFormData] = useState({ nameVi: '', nameEn: '', description: '', isActive: true });
 
-    const getCategoryName = (cat) => cat.nameVi || cat.NameVi || cat.nameEn || cat.NameEn || cat.name || '';
+    const getCategoryName = (cat) => cat.nameVi || cat.NameVi || cat.name || '';
     const getProductCount = (cat) => Number(cat.productCount ?? cat.ProductCount ?? 0);
 
     const fetchCategories = async () => {
@@ -61,7 +61,7 @@ const Categories = () => {
         setEditingId(cat.id);
         setFormData({
             nameVi: cat.nameVi || cat.NameVi || cat.name || '',
-            nameEn: cat.nameEn || cat.NameEn || cat.nameVi || cat.NameVi || cat.name || '',
+            nameEn: cat.nameVi || cat.NameVi || cat.name || '',
             description: cat.description || cat.Description || '',
             isActive: cat.isActive ?? cat.IsActive ?? true
         });
@@ -88,7 +88,7 @@ const Categories = () => {
     const handleSave = async (e) => {
         e.preventDefault();
         const nameVi = formData.nameVi.trim();
-        const nameEn = (formData.nameEn || formData.nameVi).trim();
+        const nameEn = nameVi;
         if (!nameVi) return showToast("Tên danh mục không được trống!", 'warning');
 
         const payload = {

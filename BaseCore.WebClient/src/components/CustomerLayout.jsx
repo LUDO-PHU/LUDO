@@ -60,6 +60,7 @@ const CustomerLayout = () => {
     const [localMin, setLocalMin] = useState(searchParams.get('minPrice') || '');
     const [localMax, setLocalMax] = useState(searchParams.get('maxPrice') || '');
     const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'none');
+    const [selectedNotification, setSelectedNotification] = useState(null);
 
     const isFocusMode = ['/cart', '/checkout', '/orders', '/profile'].some(path => location.pathname.includes(path));
     const unreadCount = notifications.filter(item => !(item.isRead ?? item.IsRead)).length;
@@ -267,7 +268,17 @@ const CustomerLayout = () => {
                                                         await notificationApi.markRead(id);
                                                     }
                                                     await loadNotifications();
-                                                    if (targetUrl) {
+                                                    
+                                                    const isLongMessage = (content && content.length > 60) || (display.message && display.message.length > 60);
+                                                    if (isLongMessage) {
+                                                        setIsNotiOpen(false);
+                                                        setSelectedNotification({
+                                                            title: display.title,
+                                                            message: content || display.message,
+                                                            createdAt,
+                                                            targetUrl
+                                                        });
+                                                    } else if (targetUrl) {
                                                         setIsNotiOpen(false);
                                                         navigate(targetUrl);
                                                     }
@@ -356,9 +367,9 @@ const CustomerLayout = () => {
                         </Link>
                         <p>Linh kiện điện thoại chính hãng, giao nhanh trong ngày, bảo hành minh bạch cho khách lẻ và cửa hàng sửa chữa.</p>
                         <div className="footer-contact-list">
-                            <a href="tel:19001234"><i className="fa fa-phone"></i> 1900 1234</a>
+                            <a href="tel:19001234"><i className="fa fa-phone"></i> 1900 0088</a>
                             <a href="mailto:support@phonestore.vn"><i className="fa fa-envelope"></i> support@phonestore.vn</a>
-                            <span><i className="fa fa-location-dot"></i> 24 Nguyễn Văn Cừ, Quận 5, TP.HCM</span>
+                            <span><i className="fa fa-location-dot"></i> Nghĩa Đô, Hà Nội</span>
                         </div>
                     </div>
 
@@ -406,6 +417,39 @@ const CustomerLayout = () => {
             )}
 
             {showPolicy && <PolicyModal onClose={() => setShowPolicy(false)} />}
+            {selectedNotification && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(2,6,23,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setSelectedNotification(null)}>
+                    <div style={{ width: 'min(500px, 100%)', background: '#fff', borderRadius: 16, boxShadow: '0 30px 90px rgba(0,0,0,0.3)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a' }}>{selectedNotification.title}</h3>
+                            <button onClick={() => setSelectedNotification(null)} style={{ border: 0, background: 'transparent', fontSize: 22, fontWeight: 900, cursor: 'pointer', color: '#64748b' }}>×</button>
+                        </div>
+                        <div style={{ padding: 24 }}>
+                            <div style={{ fontSize: '14px', color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: 20 }}>
+                                {selectedNotification.message}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#64748b' }}>
+                                <span>{formatAppDateTime(selectedNotification.createdAt)}</span>
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <button onClick={() => setSelectedNotification(null)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', fontWeight: 800, cursor: 'pointer' }}>Đóng</button>
+                                    {selectedNotification.targetUrl && (
+                                        <button 
+                                            onClick={() => {
+                                                const url = selectedNotification.targetUrl;
+                                                setSelectedNotification(null);
+                                                navigate(url);
+                                            }} 
+                                            style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #0ea5e9', background: '#0ea5e9', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                                        >
+                                            Xem đơn hàng
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

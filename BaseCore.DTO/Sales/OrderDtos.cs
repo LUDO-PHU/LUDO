@@ -21,6 +21,8 @@ namespace BaseCore.DTO.Sales
         public DateTime? DeliveredAt { get; set; }
         public DateTime? CompletedAt { get; set; }
         public DateTime? CancelledAt { get; set; }
+        public DateTime? ReturnedAt { get; set; }
+        public IReadOnlyList<string> AllowedActions { get; set; } = Array.Empty<string>();
         public IReadOnlyList<OrderDetailDto> Details { get; set; } = Array.Empty<OrderDetailDto>();
     }
 
@@ -38,6 +40,7 @@ namespace BaseCore.DTO.Sales
         public decimal DiscountPercent { get; set; }
         public decimal FinalPrice { get; set; }
         public decimal TotalPrice { get; set; }
+        public decimal LineTotal => TotalPrice;
         public decimal TotalImportCost { get; set; }
         public decimal Profit { get; set; }
     }
@@ -66,6 +69,7 @@ namespace BaseCore.DTO.Sales
     {
         public int ProductId { get; set; }
         public int Quantity { get; set; }
+        public string? SelectedImageUrl { get; set; }
     }
 
     public class UpdateOrderStatusDto

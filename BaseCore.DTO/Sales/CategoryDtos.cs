@@ -6,6 +6,7 @@ namespace BaseCore.DTO.Sales
         public string NameVi { get; set; } = string.Empty;
         public string NameEn { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
+        public string IconClass { get; set; } = string.Empty;
         public bool IsActive { get; set; }
         public int ProductCount { get; set; }
     }

@@ -14,6 +14,8 @@ namespace BaseCore.DTO.Sales
         public int CompletedOrders { get; set; }
         public int CancelledOrders { get; set; }
         public int TotalReceipts { get; set; }
+        public int ReturnedToStockOrders { get; set; }
+        public int ExchangeRequestsCount { get; set; }
         public List<ChartDataDto> RevenueChart { get; set; } = new();
         public List<ChartDataDto> OrderStatusChart { get; set; } = new();
         public List<OrderDto> RecentOrders { get; set; } = new();

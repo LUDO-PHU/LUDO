@@ -39,6 +39,9 @@ namespace BaseCore.Repository.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
 
+                    b.Property<string>("SelectedImageUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
@@ -181,7 +184,17 @@ namespace BaseCore.Repository.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("RelatedId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SupplierId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
@@ -189,6 +202,8 @@ namespace BaseCore.Repository.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SupplierId");
 
                     b.HasIndex("UserId");
 
@@ -219,8 +234,20 @@ namespace BaseCore.Repository.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CustomerPhone")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime?>("DeliveredAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("OrderCode")
                         .IsRequired()
@@ -228,6 +255,13 @@ namespace BaseCore.Repository.Migrations
 
                     b.Property<decimal>("Profit")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ReturnedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ShippingAddress")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ShippingAt")
                         .HasColumnType("datetime2");
@@ -277,6 +311,9 @@ namespace BaseCore.Repository.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
 
+                    b.Property<string>("SelectedImageUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<decimal>("TotalImportCost")
                         .HasColumnType("decimal(18,2)");
 
@@ -296,6 +333,35 @@ namespace BaseCore.Repository.Migrations
                     b.HasIndex("ProductId");
 
                     b.ToTable("OrderDetails");
+                });
+
+            modelBuilder.Entity("BaseCore.Entities.OrderStockAllocation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("OrderDetailId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StockBatchId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("UnitImportPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderDetailId");
+
+                    b.HasIndex("StockBatchId");
+
+                    b.ToTable("OrderStockAllocations");
                 });
 
             modelBuilder.Entity("BaseCore.Entities.Product", b =>
@@ -323,10 +389,6 @@ namespace BaseCore.Repository.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("DescriptionEn")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("DescriptionVi")
                         .IsRequired()
@@ -387,8 +449,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 1,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3160),
-                            DescriptionEn = "Detailed description for Màn hình iPhone 15 Pro Max OLED 1",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6007),
                             DescriptionVi = "Mô tả chi tiết cho Màn hình iPhone 15 Pro Max OLED 1",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Screen",
@@ -408,8 +469,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 1,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3167),
-                            DescriptionEn = "Detailed description for Màn hình iPhone 15 Pro Max OLED 2",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6013),
                             DescriptionVi = "Mô tả chi tiết cho Màn hình iPhone 15 Pro Max OLED 2",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Screen",
@@ -429,8 +489,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 1,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3171),
-                            DescriptionEn = "Detailed description for Màn hình iPhone 15 Pro Max OLED 3",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6056),
                             DescriptionVi = "Mô tả chi tiết cho Màn hình iPhone 15 Pro Max OLED 3",
                             DiscountPercent = 10m,
                             ImageUrl = "https://placehold.co/400x400?text=Screen",
@@ -450,8 +509,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 2,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3178),
-                            DescriptionEn = "Detailed description for Pin iPhone 13 chính hãng 1",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6060),
                             DescriptionVi = "Mô tả chi tiết cho Pin iPhone 13 chính hãng 1",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Battery",
@@ -471,8 +529,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 2,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3182),
-                            DescriptionEn = "Detailed description for Pin iPhone 13 chính hãng 2",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6064),
                             DescriptionVi = "Mô tả chi tiết cho Pin iPhone 13 chính hãng 2",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Battery",
@@ -492,8 +549,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 2,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3187),
-                            DescriptionEn = "Detailed description for Pin iPhone 13 chính hãng 3",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6068),
                             DescriptionVi = "Mô tả chi tiết cho Pin iPhone 13 chính hãng 3",
                             DiscountPercent = 10m,
                             ImageUrl = "https://placehold.co/400x400?text=Battery",
@@ -513,8 +569,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 3,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3243),
-                            DescriptionEn = "Detailed description for Camera sau Samsung S23 Ultra 1",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6072),
                             DescriptionVi = "Mô tả chi tiết cho Camera sau Samsung S23 Ultra 1",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Camera",
@@ -534,8 +589,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 3,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3247),
-                            DescriptionEn = "Detailed description for Camera sau Samsung S23 Ultra 2",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6075),
                             DescriptionVi = "Mô tả chi tiết cho Camera sau Samsung S23 Ultra 2",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Camera",
@@ -555,8 +609,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 3,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3251),
-                            DescriptionEn = "Detailed description for Camera sau Samsung S23 Ultra 3",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6078),
                             DescriptionVi = "Mô tả chi tiết cho Camera sau Samsung S23 Ultra 3",
                             DiscountPercent = 10m,
                             ImageUrl = "https://placehold.co/400x400?text=Camera",
@@ -576,8 +629,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 1,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3257),
-                            DescriptionEn = "Detailed description for Màn hình Samsung A54 1",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6083),
                             DescriptionVi = "Mô tả chi tiết cho Màn hình Samsung A54 1",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Samsung+Screen",
@@ -597,8 +649,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 1,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3261),
-                            DescriptionEn = "Detailed description for Màn hình Samsung A54 2",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6087),
                             DescriptionVi = "Mô tả chi tiết cho Màn hình Samsung A54 2",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Samsung+Screen",
@@ -618,8 +669,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 1,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3265),
-                            DescriptionEn = "Detailed description for Màn hình Samsung A54 3",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6090),
                             DescriptionVi = "Mô tả chi tiết cho Màn hình Samsung A54 3",
                             DiscountPercent = 10m,
                             ImageUrl = "https://placehold.co/400x400?text=Samsung+Screen",
@@ -639,8 +689,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 5,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3271),
-                            DescriptionEn = "Detailed description for Cáp sạc Type-C nhanh 1",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6094),
                             DescriptionVi = "Mô tả chi tiết cho Cáp sạc Type-C nhanh 1",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Cable",
@@ -660,8 +709,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 5,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3274),
-                            DescriptionEn = "Detailed description for Cáp sạc Type-C nhanh 2",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6097),
                             DescriptionVi = "Mô tả chi tiết cho Cáp sạc Type-C nhanh 2",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Cable",
@@ -681,8 +729,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 5,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3278),
-                            DescriptionEn = "Detailed description for Cáp sạc Type-C nhanh 3",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6100),
                             DescriptionVi = "Mô tả chi tiết cho Cáp sạc Type-C nhanh 3",
                             DiscountPercent = 10m,
                             ImageUrl = "https://placehold.co/400x400?text=Cable",
@@ -702,8 +749,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 6,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3283),
-                            DescriptionEn = "Detailed description for Loa ngoài iPhone 12 1",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6104),
                             DescriptionVi = "Mô tả chi tiết cho Loa ngoài iPhone 12 1",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Speaker",
@@ -723,8 +769,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 6,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3287),
-                            DescriptionEn = "Detailed description for Loa ngoài iPhone 12 2",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6129),
                             DescriptionVi = "Mô tả chi tiết cho Loa ngoài iPhone 12 2",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Speaker",
@@ -744,8 +789,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 6,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3292),
-                            DescriptionEn = "Detailed description for Loa ngoài iPhone 12 3",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6134),
                             DescriptionVi = "Mô tả chi tiết cho Loa ngoài iPhone 12 3",
                             DiscountPercent = 10m,
                             ImageUrl = "https://placehold.co/400x400?text=Speaker",
@@ -765,8 +809,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 7,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3326),
-                            DescriptionEn = "Detailed description for Mainboard iPhone 11 1",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6138),
                             DescriptionVi = "Mô tả chi tiết cho Mainboard iPhone 11 1",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Mainboard",
@@ -786,8 +829,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 7,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3330),
-                            DescriptionEn = "Detailed description for Mainboard iPhone 11 2",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6142),
                             DescriptionVi = "Mô tả chi tiết cho Mainboard iPhone 11 2",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Mainboard",
@@ -807,8 +849,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 7,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3335),
-                            DescriptionEn = "Detailed description for Mainboard iPhone 11 3",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6146),
                             DescriptionVi = "Mô tả chi tiết cho Mainboard iPhone 11 3",
                             DiscountPercent = 10m,
                             ImageUrl = "https://placehold.co/400x400?text=Mainboard",
@@ -828,8 +869,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 4,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3339),
-                            DescriptionEn = "Detailed description for Vỏ lưng iPhone 14 Pro 1",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6149),
                             DescriptionVi = "Mô tả chi tiết cho Vỏ lưng iPhone 14 Pro 1",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Housing",
@@ -849,8 +889,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 4,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3343),
-                            DescriptionEn = "Detailed description for Vỏ lưng iPhone 14 Pro 2",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6153),
                             DescriptionVi = "Mô tả chi tiết cho Vỏ lưng iPhone 14 Pro 2",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Housing",
@@ -870,8 +909,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 4,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3348),
-                            DescriptionEn = "Detailed description for Vỏ lưng iPhone 14 Pro 3",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6156),
                             DescriptionVi = "Mô tả chi tiết cho Vỏ lưng iPhone 14 Pro 3",
                             DiscountPercent = 10m,
                             ImageUrl = "https://placehold.co/400x400?text=Housing",
@@ -891,8 +929,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 8,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3353),
-                            DescriptionEn = "Detailed description for IC nguồn iPhone X 1",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6160),
                             DescriptionVi = "Mô tả chi tiết cho IC nguồn iPhone X 1",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=IC",
@@ -912,8 +949,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 8,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3357),
-                            DescriptionEn = "Detailed description for IC nguồn iPhone X 2",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6163),
                             DescriptionVi = "Mô tả chi tiết cho IC nguồn iPhone X 2",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=IC",
@@ -933,8 +969,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 8,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3360),
-                            DescriptionEn = "Detailed description for IC nguồn iPhone X 3",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6167),
                             DescriptionVi = "Mô tả chi tiết cho IC nguồn iPhone X 3",
                             DiscountPercent = 10m,
                             ImageUrl = "https://placehold.co/400x400?text=IC",
@@ -954,8 +989,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 9,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3365),
-                            DescriptionEn = "Detailed description for Kính cường lực Samsung S22 1",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6171),
                             DescriptionVi = "Mô tả chi tiết cho Kính cường lực Samsung S22 1",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Glass",
@@ -975,8 +1009,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 9,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3369),
-                            DescriptionEn = "Detailed description for Kính cường lực Samsung S22 2",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6174),
                             DescriptionVi = "Mô tả chi tiết cho Kính cường lực Samsung S22 2",
                             DiscountPercent = 0m,
                             ImageUrl = "https://placehold.co/400x400?text=Glass",
@@ -996,8 +1029,7 @@ namespace BaseCore.Repository.Migrations
                             CategoryId = 9,
                             Color = "Default",
                             Condition = "New",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3373),
-                            DescriptionEn = "Detailed description for Kính cường lực Samsung S22 3",
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(6178),
                             DescriptionVi = "Mô tả chi tiết cho Kính cường lực Samsung S22 3",
                             DiscountPercent = 10m,
                             ImageUrl = "https://placehold.co/400x400?text=Glass",
@@ -1024,6 +1056,11 @@ namespace BaseCore.Repository.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
                     b.Property<string>("ImageUrl")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1033,6 +1070,11 @@ namespace BaseCore.Repository.Migrations
 
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.HasKey("Id");
 
@@ -1048,6 +1090,9 @@ namespace BaseCore.Repository.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AdminId")
+                        .HasColumnType("int");
 
                     b.Property<string>("CancelReason")
                         .IsRequired()
@@ -1080,6 +1125,10 @@ namespace BaseCore.Repository.Migrations
                     b.Property<decimal>("ImportPrice")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
@@ -1090,8 +1139,18 @@ namespace BaseCore.Repository.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("ReceiptType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RequestId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("ShippingAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("Specifications")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -1108,11 +1167,105 @@ namespace BaseCore.Repository.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AdminId");
+
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("RequestId");
 
                     b.HasIndex("SupplierId");
 
                     b.ToTable("Receipts");
+                });
+
+            modelBuilder.Entity("BaseCore.Entities.ReturnRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdminComment")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ReturnRequests");
+                });
+
+            modelBuilder.Entity("BaseCore.Entities.RevenueTransaction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("OwnerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OwnerType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("ReferenceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferenceType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("TransactionType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TransactionType", "ReferenceType", "ReferenceId", "OwnerType", "OwnerId");
+
+                    b.ToTable("RevenueTransactions");
                 });
 
             modelBuilder.Entity("BaseCore.Entities.Review", b =>
@@ -1130,7 +1283,7 @@ namespace BaseCore.Repository.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("OrderId")
+                    b.Property<int?>("OrderId")
                         .HasColumnType("int");
 
                     b.Property<int>("ProductId")
@@ -1153,6 +1306,46 @@ namespace BaseCore.Repository.Migrations
                     b.ToTable("Reviews");
                 });
 
+            modelBuilder.Entity("BaseCore.Entities.StockBatch", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("QuantityImported")
+                        .HasColumnType("int");
+
+                    b.Property<int>("QuantityRemaining")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReceiptId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SupplierId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("UnitImportPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ReceiptId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.ToTable("StockBatches");
+                });
+
             modelBuilder.Entity("BaseCore.Entities.Supplier", b =>
                 {
                     b.Property<int>("Id")
@@ -1164,6 +1357,9 @@ namespace BaseCore.Repository.Migrations
                     b.Property<string>("Address")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("CategoryId")
+                        .HasColumnType("int");
 
                     b.Property<string>("CompanyName")
                         .IsRequired()
@@ -1195,6 +1391,8 @@ namespace BaseCore.Repository.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CategoryId");
+
                     b.HasIndex("UserId");
 
                     b.ToTable("Suppliers");
@@ -1206,12 +1404,72 @@ namespace BaseCore.Repository.Migrations
                             Address = "Hanoi, Vietnam",
                             CompanyName = "Tech Supply Co.",
                             ContactName = "Mr. John",
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(3046),
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(5890),
                             Email = "supplier@econent.com",
                             IsActive = true,
                             Phone = "0988222222",
                             UserId = 3
                         });
+                });
+
+            modelBuilder.Entity("BaseCore.Entities.SupplierRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AdminId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RejectionReason")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RequestedProductName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SuggestedPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("SupplierId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdminId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.ToTable("SupplierRequests");
                 });
 
             modelBuilder.Entity("BaseCore.Entities.User", b =>
@@ -1266,7 +1524,7 @@ namespace BaseCore.Repository.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(2904),
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(5745),
                             Email = "admin@econent.com",
                             FullName = "System Admin",
                             IsActive = true,
@@ -1278,7 +1536,7 @@ namespace BaseCore.Repository.Migrations
                         new
                         {
                             Id = 2,
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(2907),
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(5747),
                             Email = "user@econent.com",
                             FullName = "Test User",
                             IsActive = true,
@@ -1290,7 +1548,7 @@ namespace BaseCore.Repository.Migrations
                         new
                         {
                             Id = 3,
-                            CreatedAt = new DateTime(2026, 5, 13, 9, 7, 51, 858, DateTimeKind.Utc).AddTicks(2908),
+                            CreatedAt = new DateTime(2026, 5, 31, 13, 7, 27, 552, DateTimeKind.Utc).AddTicks(5749),
                             Email = "supplier@econent.com",
                             FullName = "Supplier Demo",
                             IsActive = true,
@@ -1322,11 +1580,18 @@ namespace BaseCore.Repository.Migrations
 
             modelBuilder.Entity("BaseCore.Entities.Notification", b =>
                 {
+                    b.HasOne("BaseCore.Entities.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BaseCore.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Supplier");
 
                     b.Navigation("User");
                 });
@@ -1361,6 +1626,25 @@ namespace BaseCore.Repository.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("BaseCore.Entities.OrderStockAllocation", b =>
+                {
+                    b.HasOne("BaseCore.Entities.OrderDetail", "OrderDetail")
+                        .WithMany("StockAllocations")
+                        .HasForeignKey("OrderDetailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BaseCore.Entities.StockBatch", "StockBatch")
+                        .WithMany()
+                        .HasForeignKey("StockBatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OrderDetail");
+
+                    b.Navigation("StockBatch");
+                });
+
             modelBuilder.Entity("BaseCore.Entities.Product", b =>
                 {
                     b.HasOne("BaseCore.Entities.Category", "Category")
@@ -1392,11 +1676,21 @@ namespace BaseCore.Repository.Migrations
 
             modelBuilder.Entity("BaseCore.Entities.Receipt", b =>
                 {
+                    b.HasOne("BaseCore.Entities.User", "Admin")
+                        .WithMany()
+                        .HasForeignKey("AdminId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BaseCore.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("BaseCore.Entities.SupplierRequest", "Request")
+                        .WithMany()
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("BaseCore.Entities.Supplier", "Supplier")
                         .WithMany()
@@ -1404,12 +1698,16 @@ namespace BaseCore.Repository.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Admin");
+
                     b.Navigation("Product");
+
+                    b.Navigation("Request");
 
                     b.Navigation("Supplier");
                 });
 
-            modelBuilder.Entity("BaseCore.Entities.Review", b =>
+            modelBuilder.Entity("BaseCore.Entities.ReturnRequest", b =>
                 {
                     b.HasOne("BaseCore.Entities.Order", "Order")
                         .WithMany()
@@ -1417,8 +1715,26 @@ namespace BaseCore.Repository.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("BaseCore.Entities.Product", "Product")
+                    b.HasOne("BaseCore.Entities.User", "User")
                         .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BaseCore.Entities.Review", b =>
+                {
+                    b.HasOne("BaseCore.Entities.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BaseCore.Entities.Product", "Product")
+                        .WithMany("Reviews")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1436,15 +1752,82 @@ namespace BaseCore.Repository.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BaseCore.Entities.StockBatch", b =>
+                {
+                    b.HasOne("BaseCore.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BaseCore.Entities.Receipt", "Receipt")
+                        .WithMany()
+                        .HasForeignKey("ReceiptId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BaseCore.Entities.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Receipt");
+
+                    b.Navigation("Supplier");
+                });
+
             modelBuilder.Entity("BaseCore.Entities.Supplier", b =>
                 {
+                    b.HasOne("BaseCore.Entities.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BaseCore.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Category");
+
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BaseCore.Entities.SupplierRequest", b =>
+                {
+                    b.HasOne("BaseCore.Entities.User", "Admin")
+                        .WithMany()
+                        .HasForeignKey("AdminId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BaseCore.Entities.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BaseCore.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BaseCore.Entities.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Admin");
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Supplier");
                 });
 
             modelBuilder.Entity("BaseCore.Entities.Order", b =>
@@ -1452,9 +1835,16 @@ namespace BaseCore.Repository.Migrations
                     b.Navigation("OrderDetails");
                 });
 
+            modelBuilder.Entity("BaseCore.Entities.OrderDetail", b =>
+                {
+                    b.Navigation("StockAllocations");
+                });
+
             modelBuilder.Entity("BaseCore.Entities.Product", b =>
                 {
                     b.Navigation("ProductImages");
+
+                    b.Navigation("Reviews");
                 });
 #pragma warning restore 612, 618
         }

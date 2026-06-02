@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { orderApi, unwrapApiData, unwrapPagedData } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { getImageUrl } from '../data/fallbackCatalog';
@@ -23,36 +23,19 @@ const getItemImage = (detail) =>
     readValue(detail, 'mainImage', 'MainImage', 'imageUrl', 'ImageUrl') || readValue(detail?.product, 'mainImage', 'imageUrl');
 
 const getNumber = (source, ...keys) => Number(readValue(source, ...keys) || 0);
+const getAllowedActions = (source) => readValue(source, 'allowedActions', 'AllowedActions') || [];
 
 const StatusBadge = ({ status }) => {
     const item = ORDER_STATUS[status] || { label: status || 'Chưa xác định', badge: 'badge-pending' };
     return <span className={`badge ${item.badge}`}>{item.label}</span>;
 };
 
-const isPendingOrderStatus = (status) => {
-    const value = String(status || '').trim().toLowerCase();
-    return value === 'pending'
-        || value === 'pendingadminreview'
-        || value === 'chờ xử lý'
-        || value === 'cho xu ly'
-        || value === 'chờ xác nhận'
-        || value === 'cho xac nhan';
-};
-
-const isShippingOrderStatus = (status) => {
-    const value = String(status || '').trim().toLowerCase();
-    return value === 'shipping'
-        || value === 'confirmed'
-        || value === 'delivered'
-        || value === 'đang giao'
-        || value === 'dang giao';
-};
-
 const OrderDetailModal = ({ order, onClose, onConfirm, onCancel }) => {
     if (!order) return null;
     const details = getItems(order);
-    const canConfirm = isPendingOrderStatus(order.status);
-    const canCancel = canConfirm || isShippingOrderStatus(order.status);
+    const allowedActions = getAllowedActions(order);
+    const canConfirm = allowedActions.includes('confirm');
+    const canCancel = allowedActions.includes('cancel');
 
     return (
         <div className="modal-backdrop" onClick={onClose}>
@@ -236,8 +219,9 @@ const Orders = () => {
                             {loading ? (
                                 <tr><td colSpan="6" style={{ padding: 56, textAlign: 'center', color: '#94a3b8' }}><i className="fa fa-spinner fa-spin" style={{ fontSize: 24 }} /></td></tr>
                             ) : orders.length > 0 ? orders.map(order => {
-                                const canConfirm = isPendingOrderStatus(order.status);
-                                const canCancel = canConfirm || isShippingOrderStatus(order.status);
+                                const allowedActions = getAllowedActions(order);
+                                const canConfirm = allowedActions.includes('confirm');
+                                const canCancel = allowedActions.includes('cancel');
                                 return (
                                     <tr key={order.id} className="clickable" onClick={() => openDetail(order.id)}>
                                         <td className="id-column">{order.orderCode || `#${order.id}`}</td>
@@ -268,10 +252,18 @@ const Orders = () => {
                     <div className="pagination-wrapper">
                         <div className="pagination">
                             <button className="btn-page" disabled={params.page === 1} onClick={() => setPage(params.page - 1)}>‹</button>
-                            {Array.from({ length: Math.min(totalPages, 7) }).map((_, index) => {
-                                const page = index + 1;
-                                return <button key={page} className={`btn-page ${params.page === page ? 'active' : ''}`} onClick={() => setPage(page)}>{page}</button>;
-                            })}
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => {
+                                const w = 2;
+                                return p === 1 || p === totalPages || (p >= params.page - w && p <= params.page + w);
+                            }).reduce((acc, p) => {
+                                if (acc.length > 0 && p - acc[acc.length - 1] > 1) acc.push('...');
+                                acc.push(p);
+                                return acc;
+                            }, []).map((p, idx) =>
+                                p === '...'
+                                    ? <span key={`ellipsis-${idx}`} className="btn-page btn-page-ellipsis">…</span>
+                                    : <button key={p} className={`btn-page ${params.page === p ? 'active' : ''}`} onClick={() => setPage(p)}>{p}</button>
+                            )}
                             <button className="btn-page" disabled={params.page === totalPages} onClick={() => setPage(params.page + 1)}>›</button>
                         </div>
                     </div>

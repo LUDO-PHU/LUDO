@@ -44,13 +44,19 @@ export const unwrapPagedData = (input) => {
 
 const api = axios.create({
     baseURL: '/api',
-    headers: { 'Content-Type': 'application/json' },
 });
 
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
         if (token) config.headers.Authorization = `Bearer ${token}`;
+        if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+            if (typeof config.headers?.delete === 'function') {
+                config.headers.delete('Content-Type');
+            } else {
+                delete config.headers['Content-Type'];
+            }
+        }
         return config;
     },
     (error) => Promise.reject(error)
@@ -95,8 +101,10 @@ export const productApi = {
     getImages: (id) => api.get(`/products/${id}/images`),
     create: (data) => api.post('/products', data),
     update: (id, data) => api.put(`/products/${id}`, data),
-    createSupplier: (data) => api.post('/supplier/products', data, { headers: { 'Content-Type': 'multipart/form-data' } }),
-    updateSupplier: (id, data) => api.put(`/supplier/products/${id}`, data, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    createWithImages: (data) => api.post('/products', data),
+    updateWithImages: (id, data) => api.put(`/products/${id}`, data),
+    createSupplier: (data) => api.post('/supplier/products', data),
+    updateSupplier: (id, data) => api.put(`/supplier/products/${id}`, data),
     delete: (id) => api.delete(`/products/${id}`),
 };
 
@@ -143,6 +151,7 @@ export const receiptApi = {
 export const supplierRequestApi = {
     searchAdmin: (params) => api.get('/admin/supplier-requests', { params }),
     create: (data) => api.post('/admin/supplier-requests', data),
+    cancel: (id, reason) => api.delete(`/admin/supplier-requests/${id}`, { params: reason ? { reason } : {} }),
     searchSupplier: (params) => api.get('/supplier/requests', { params }),
     approve: (id) => api.post(`/supplier/requests/${id}/approve`),
     reject: (id, rejectionReason) => api.post(`/supplier/requests/${id}/reject`, { rejectionReason }),
@@ -161,7 +170,7 @@ export const supplierApi = {
 // ── CART ──────────────────────────────────────────────────────
 export const cartApi = {
     getCart: () => api.get('/cart'),
-    addItem: (productId, quantity = 1) => api.post('/cart/add', { productId, quantity }),
+    addItem: (productId, quantity = 1, selectedImageUrl = '') => api.post('/cart/add', { productId, quantity, selectedImageUrl }),
     updateItem: (productId, quantity) => api.put(`/cart/items/${productId}`, { quantity }),
     removeItem: (productId) => api.delete(`/cart/items/${productId}`),
     clearCart: () => api.delete('/cart/clear'),
@@ -195,6 +204,16 @@ export const dashboardApi = {
 
 export const revenueApi = {
     getAdmin: () => api.get('/admin/revenue'),
+};
+
+// ── RETURN REQUESTS ───────────────────────────────────────────
+export const returnRequestApi = {
+    create: (data) => api.post('/returns', data),
+    upload: (formData) => api.post('/returns/upload', formData),
+    getMy: () => api.get('/returns/my'),
+    getAll: () => api.get('/returns/admin'),
+    approve: (id, comment) => api.put(`/returns/${id}/approve`, { adminComment: comment }),
+    reject: (id, comment) => api.put(`/returns/${id}/reject`, { adminComment: comment }),
 };
 
 export default api;

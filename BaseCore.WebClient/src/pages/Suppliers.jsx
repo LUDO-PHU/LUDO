@@ -6,7 +6,7 @@ import { formatAppDate, formatAppDateTime } from '../utils/dateTime';
 import { RECEIPT_STATUS, REQUEST_STATUS, activeLabel, formatVnd, getMainImage } from '../utils/display';
 import '../styles/admin.css';
 
-const getCategoryName = (supplier) => supplier.categoryNameVi || supplier.categoryNameEn || supplier.categoryName || 'Chưa phân loại';
+const getCategoryName = (supplier) => supplier.categoryNameVi || supplier.categoryName || 'Chưa phân loại';
 
 const StatusBadge = ({ isActive }) => (
     <span className={`badge ${isActive ? 'badge-active' : 'badge-inactive'}`}>
@@ -104,10 +104,10 @@ const SupplierDetailModal = ({ supplier, onClose, onToggle }) => {
                                                 <td>
                                                     <div className="record-summary">
                                                         {imageUrl && <img src={getImageUrl(imageUrl)} alt="" className="record-thumb record-thumb-sm" onError={event => { event.currentTarget.style.display = 'none'; }} />}
-                                                        <span className="cust-name one-line">{product.nameVi || product.nameEn || product.name}</span>
+                                                        <span className="cust-name one-line">{product.nameVi || product.name}</span>
                                                     </div>
                                                 </td>
-                                                <td><span className="one-line">{product.categoryName || product.categoryNameVi || 'Chưa phân loại'}</span></td>
+                                                <td><span className="one-line">{product.categoryNameVi || 'Chưa phân loại'}</span></td>
                                                 <td style={{ textAlign: 'right' }} className="price-text">{formatVnd(product.price)}</td>
                                                 <td style={{ textAlign: 'center' }}><span className="qty">{product.stock}</span></td>
                                                 <td>{product.isActive === false ? 'Ngừng hoạt động' : 'Đang bán'}</td>
@@ -246,7 +246,7 @@ const Suppliers = () => {
                     </div>
                     <select className="select-filter" value={params.categoryId} onChange={event => setParams(prev => ({ ...prev, categoryId: event.target.value, page: 1 }))}>
                         <option value="">Tất cả danh mục</option>
-                        {categories.map(category => <option key={category.id} value={category.id}>{category.nameVi || category.nameEn}</option>)}
+                        {categories.map(category => <option key={category.id} value={category.id}>{category.nameVi}</option>)}
                     </select>
                     <select className="select-filter" value={params.isActive} onChange={event => setParams(prev => ({ ...prev, isActive: event.target.value, page: 1 }))}>
                         <option value="">Tất cả trạng thái</option>
@@ -308,9 +308,18 @@ const Suppliers = () => {
                     <div className="pagination-wrapper">
                         <div className="pagination">
                             <button className="btn-page" disabled={params.page === 1} onClick={() => setParams(prev => ({ ...prev, page: prev.page - 1 }))}>‹</button>
-                            {Array.from({ length: Math.min(totalPages, 7) }).map((_, index) => (
-                                <button key={index + 1} className={`btn-page ${params.page === index + 1 ? 'active' : ''}`} onClick={() => setParams(prev => ({ ...prev, page: index + 1 }))}>{index + 1}</button>
-                            ))}
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => {
+                                const w = 2;
+                                return p === 1 || p === totalPages || (p >= params.page - w && p <= params.page + w);
+                            }).reduce((acc, p) => {
+                                if (acc.length > 0 && p - acc[acc.length - 1] > 1) acc.push('...');
+                                acc.push(p);
+                                return acc;
+                            }, []).map((p, idx) =>
+                                p === '...'
+                                    ? <span key={`ellipsis-${idx}`} className="btn-page btn-page-ellipsis">…</span>
+                                    : <button key={p} className={`btn-page ${params.page === p ? 'active' : ''}`} onClick={() => setParams(prev => ({ ...prev, page: p }))}>{p}</button>
+                            )}
                             <button className="btn-page" disabled={params.page === totalPages} onClick={() => setParams(prev => ({ ...prev, page: prev.page + 1 }))}>›</button>
                         </div>
                     </div>

@@ -51,7 +51,8 @@ namespace BaseCore.Services
 
                     if (order != null)
                     {
-                        var firstDetail = order.OrderDetails.FirstOrDefault(detail => !string.IsNullOrWhiteSpace(detail.Product?.ImageUrl))
+                        var firstDetail = order.OrderDetails.FirstOrDefault(detail => !string.IsNullOrWhiteSpace(detail.SelectedImageUrl))
+                            ?? order.OrderDetails.FirstOrDefault(detail => !string.IsNullOrWhiteSpace(detail.Product?.ImageUrl))
                             ?? order.OrderDetails.FirstOrDefault();
                         var display = BuildOrderNotificationDisplay(note, order);
                         dto.OrderId = order.Id;
@@ -59,7 +60,9 @@ namespace BaseCore.Services
                         dto.Title = display.Title;
                         dto.Content = display.Content;
                         dto.Url = $"/customer/orders?orderId={order.Id}";
-                        dto.ImageUrl = firstDetail?.Product?.ImageUrl ?? string.Empty;
+                        dto.ImageUrl = firstDetail != null && !string.IsNullOrEmpty(firstDetail.SelectedImageUrl)
+                            ? firstDetail.SelectedImageUrl
+                            : (firstDetail?.Product?.ImageUrl ?? string.Empty);
                         dto.ProductName = firstDetail?.Product?.NameVi ?? string.Empty;
                     }
                 }
@@ -120,19 +123,29 @@ namespace BaseCore.Services
             var text = $"{notification.Title} {notification.Message}".ToLowerInvariant();
             var orderLabel = string.IsNullOrWhiteSpace(order.OrderCode) ? $"#{order.Id}" : $"#{order.OrderCode}";
 
+            if (text.Contains("doi hang") || text.Contains("đổi hàng") || text.Contains("tra hang") || text.Contains("trả hàng") || text.Contains("yêu cầu") || text.Contains("hoàn trả") || text.Contains("hoan tra"))
+            {
+                return (notification.Title, notification.Message);
+            }
+
+            if (IsReturnedText(text) || order.Status == OrderStatus.ReturnedToStock)
+            {
+                return ("\u0110ơn hàng đã hoàn về kho", $"\u0110ơn {orderLabel} đã tự động hoàn về kho do không xác nhận nhận hàng sau 3 ngày.");
+            }
+
             if (IsCancelledText(text) || IsCancelledStatus(order.Status) && !IsShippingText(text) && !IsCompletedText(text))
             {
-                return ("Đơn hàng đã hủy", $"Đơn {orderLabel} đã bị hủy.");
+                return ("\u0110ơn hàng đã hủy", $"\u0110ơn {orderLabel} đã bị hủy.");
             }
 
             if (IsCompletedText(text) || order.Status == OrderStatus.Completed && !IsShippingText(text))
             {
-                return ("Đơn hàng đã giao", $"Đơn {orderLabel} đã giao thành công.");
+                return ("\u0110ơn hàng đã giao", $"\u0110ơn {orderLabel} đã giao thành công.");
             }
 
             if (IsShippingText(text) || IsShippingStatus(order.Status))
             {
-                return ("Đơn hàng đang giao", $"Đơn {orderLabel} đang được giao.");
+                return ("\u0110ơn hàng đang giao", $"\u0110ơn {orderLabel} đang được giao.");
             }
 
             return (notification.Title, notification.Message);
@@ -182,6 +195,14 @@ namespace BaseCore.Services
                    status == OrderStatus.CancelledByUser ||
                    status == OrderStatus.CancelledByAdmin ||
                    status == OrderStatus.Rejected;
+        }
+
+        private static bool IsReturnedText(string text)
+        {
+            return text.Contains("hoan ve kho") ||
+                   text.Contains("hoàn về kho") ||
+                   text.Contains("returned") ||
+                   text.Contains("returnedtostock");
         }
 
         private static string? ExtractOrderCode(string text)

@@ -7,6 +7,7 @@ namespace BaseCore.Services
     {
         Task<ApiResponse<IReadOnlyList<ReviewDto>>> GetByProductAsync(int productId);
         Task<ApiResponse<IReadOnlyList<ReviewDto>>> GetByUserAsync(int userId);
+        Task<ApiResponse<ReviewEligibilityDto>> GetEligibilityAsync(int userId, int productId);
         Task<ApiResponse<ReviewDto>> CreateAsync(int userId, CreateReviewDto request);
     }
 }

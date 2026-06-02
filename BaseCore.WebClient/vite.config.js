@@ -8,14 +8,14 @@ export default defineConfig({
         port: 3000,
         proxy: {
             '/api': {
-                target: 'http://127.0.0.1:5001',
+                target: 'http://127.0.0.1:5000',
                 changeOrigin: true,
                 secure: false,
                 configure: (proxy, options) => {
                     proxy.on('error', (err, req, res) => {
                         console.log('Proxy error:', err.message);
                         res.writeHead(500, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ message: 'Backend not available. Make sure backend is running on port 5001 with 127.0.0.1' }));
+                        res.end(JSON.stringify({ message: 'API Gateway not available. Make sure BaseCore.ApiGateway is running on port 5000 with 127.0.0.1' }));
                     });
                 }
             }

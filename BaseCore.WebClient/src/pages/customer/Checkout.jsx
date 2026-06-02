@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { orderApi, cartApi, productApi, unwrapApiData } from '../../services/api';
+import { orderApi, cartApi } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { goBackOrHome } from '../../utils/navigation';
+import { calculateItemDiscount, calculateOrderTotal } from '../../utils/discount';
+import { getImageUrl as resolveImageUrl } from '../../data/fallbackCatalog';
+
+const PLACEHOLDER = 'https://placehold.co/80';
+
+const getImageUrl = (url) => {
+    if (!url) return PLACEHOLDER;
+    return resolveImageUrl(url);
+};
 
 const Checkout = () => {
     const navigate = useNavigate();
@@ -15,8 +24,9 @@ const Checkout = () => {
     const [submitting, setSubmitting] = useState(false);
 
     const fmt = (n) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n || 0);
-    const getStock = (item) => Number(item?.productStock ?? item?.ProductStock ?? item?.stock ?? 0);
-    const canCheckout = (item) => item?.isAvailable !== false && getStock(item) > 0 && Number(item?.quantity || 0) <= getStock(item);
+    const canCheckout = (item) => Boolean(item?.canCheckout ?? item?.CanCheckout);
+    const getLineTotal = (item) => Number(item?.lineTotal ?? item?.LineTotal ?? item?.total ?? item?.Total ?? 0);
+    const getCheckoutDisabledReason = (item) => item?.checkoutDisabledReason ?? item?.CheckoutDisabledReason ?? '';
 
     const [form, setForm] = useState({
         customerName: user?.name || '',
@@ -31,25 +41,7 @@ const Checkout = () => {
             try {
                 setLoading(true);
                 const res = await cartApi.getCart();
-                const rawItems = res.data?.data || [];
-                const allItems = await Promise.all(rawItems.map(async item => {
-                    try {
-                        const productRes = await productApi.getById(item.productId);
-                        const product = unwrapApiData(productRes);
-                        const price = Math.round((product?.price || item.price || 0) * (1 - (product?.discountPercent || 0) / 100));
-                        const productStock = Number(product?.stock ?? item.productStock ?? item.ProductStock ?? 0);
-                        return {
-                            ...item,
-                            price,
-                            productStock,
-                            isAvailable: item.isAvailable !== false &&
-                                productStock > 0 &&
-                                String(product?.status || 'Active').toLowerCase() === 'active',
-                        };
-                    } catch {
-                        return item;
-                    }
-                }));
+                const allItems = res.data?.data || [];
 
                 // Lấy danh sách productId đã chọn từ Cart.jsx (qua sessionStorage)
                 const selectedJson = sessionStorage.getItem('checkout_selected_product_ids');
@@ -71,7 +63,7 @@ const Checkout = () => {
         loadCheckoutItems();
     }, [navigate, showToast]);
 
-    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const { subTotal, totalAmount, isLargeOrder } = calculateOrderTotal(cart, user?.tier);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -81,7 +73,8 @@ const Checkout = () => {
         }
         const invalidItem = cart.find(item => !canCheckout(item));
         if (invalidItem) {
-            showToast(`Sản phẩm "${invalidItem.productName}" không đủ tồn kho. Vui lòng quay lại giỏ hàng để cập nhật.`, 'warning');
+            const reason = getCheckoutDisabledReason(invalidItem) || 'khÃ´ng thá»ƒ thanh toÃ¡n';
+            showToast(`Sáº£n pháº©m "${invalidItem.productName}" ${reason}. Vui lÃ²ng quay láº¡i giá» hÃ ng Ä‘á»ƒ cáº­p nháº­t.`, 'warning');
             return;
         }
 
@@ -97,6 +90,7 @@ const Checkout = () => {
                 items: cart.map(item => ({
                     productId: item.productId,
                     quantity: item.quantity,
+                    selectedImageUrl: item.imageUrl || '',
                 })),
             };
 
@@ -140,15 +134,26 @@ const Checkout = () => {
                 {/* Danh sách sản phẩm */}
                 <div style={{ marginBottom: '25px', padding: '15px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                     <h4 style={{ marginBottom: '10px', fontSize: '14px', color: '#64748b' }}>SẢN PHẨM ĐẶT HÀNG:</h4>
-                    {cart.map(item => (
-                        <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: '600', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px dashed #e2e8f0' }}>
-                            <div style={{ flex: 1, paddingRight: '10px', color: '#1e293b' }}>{item.productName}</div>
-                            <div style={{ color: '#64748b', marginRight: '15px', fontSize: '14px' }}>x{item.quantity}</div>
-                            <span style={{ minWidth: '90px', textAlign: 'right', color: '#0ea5e9' }}>
-                                {fmt(item.price * item.quantity)}
-                            </span>
-                        </div>
-                    ))}
+                    {cart.map(item => {
+                        const { finalPrice } = calculateItemDiscount(item, user?.tier);
+                        return (
+                            <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: '600', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px dashed #e2e8f0' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, paddingRight: '10px' }}>
+                                    <img 
+                                        src={getImageUrl(item.imageUrl)} 
+                                        alt={item.productName} 
+                                        style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff' }} 
+                                        onError={e => { e.currentTarget.src = PLACEHOLDER; }}
+                                    />
+                                    <span style={{ color: '#1e293b', lineHeight: '1.4' }}>{item.productName}</span>
+                                </div>
+                                <div style={{ color: '#64748b', marginRight: '15px', fontSize: '14px' }}>x{item.quantity}</div>
+                                <span style={{ minWidth: '90px', textAlign: 'right', color: '#0ea5e9' }}>
+                                    {fmt(finalPrice * item.quantity)}
+                                </span>
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* Thông tin giao hàng */}
@@ -194,9 +199,19 @@ const Checkout = () => {
 
                 {/* Tổng tiền & nút đặt */}
                 <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '2px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: '700', marginBottom: '10px' }}>
+                        <span style={{ color: '#64748b' }}>Tạm tính:</span>
+                        <span style={{ color: '#64748b' }}>{fmt(subTotal)}</span>
+                    </div>
+                    {isLargeOrder && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: '700', marginBottom: '10px' }}>
+                            <span style={{ color: '#10b981' }}>Giảm giá siêu ưu đãi (-20%):</span>
+                            <span style={{ color: '#10b981' }}>-{fmt(subTotal - totalAmount)}</span>
+                        </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '22px', fontWeight: '900', marginBottom: '20px' }}>
                         <span>Tổng tiền:</span>
-                        <span style={{ color: '#dc2626' }}>{fmt(total)}</span>
+                        <span style={{ color: '#dc2626' }}>{fmt(totalAmount)}</span>
                     </div>
                     <button
                         type="submit"

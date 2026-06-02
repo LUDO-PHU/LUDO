@@ -48,6 +48,8 @@ namespace BaseCore.Services
             var pendingReceipts = receipts.Count(r => r.Status == ReceiptStatus.Pending);
             var shippingOrders = orders.Count(o => OrderService.ToPublicStatus(o.Status) == "Shipping");
             var cancelledOrders = orders.Count(o => OrderService.ToPublicStatus(o.Status) == "Cancelled");
+            var returnedToStockOrders = orders.Count(o => o.Status == OrderStatus.ReturnedToStock);
+            var exchangeRequestsCount = await _db.ReturnRequests.CountAsync(r => r.Status == ReturnRequestStatus.Pending);
             var revenue = await _revenueService.GetAdminRevenueAsync();
             
             var stats = new DashboardStatsDto
@@ -62,10 +64,12 @@ namespace BaseCore.Services
                 CompletedOrders = completedOrders.Count,
                 CancelledOrders = cancelledOrders,
                 TotalReceipts = receipts.Count(),
+                ReturnedToStockOrders = returnedToStockOrders,
+                ExchangeRequestsCount = exchangeRequestsCount,
                 
                 // Recent items
-                RecentOrders = orders.OrderByDescending(o => o.CreatedAt).Take(5).Select(OrderService.MapOrder).ToList(),
-                RecentReceipts = receipts.OrderByDescending(r => r.CreatedAt).Take(5).Select(ReceiptService.MapReceipt).ToList()
+                RecentOrders = orders.OrderByDescending(o => o.CreatedAt).Take(5).Select(order => OrderService.MapOrder(order, "Admin")).ToList(),
+                RecentReceipts = receipts.OrderByDescending(r => r.CreatedAt).Take(5).Select(receipt => ReceiptService.MapReceipt(receipt, "Admin")).ToList()
             };
 
             // Basic chart data (Last 7 days revenue - simplified demo logic)
@@ -120,7 +124,7 @@ namespace BaseCore.Services
                 DeliveredReceipts = await _db.Receipts.CountAsync(r => r.SupplierId == supplier.Id && r.Status == ReceiptStatus.Delivered),
                 CancelledReceipts = await _db.Receipts.CountAsync(r => r.SupplierId == supplier.Id && r.Status == ReceiptStatus.CancelledBySupplier),
                 RejectedReceipts = await _db.Receipts.CountAsync(r => r.SupplierId == supplier.Id && r.Status == ReceiptStatus.RejectedByAdmin),
-                RecentReceipts = receipts.OrderByDescending(r => r.CreatedAt).Take(5).Select(ReceiptService.MapReceipt).ToList(),
+                RecentReceipts = receipts.OrderByDescending(r => r.CreatedAt).Take(5).Select(receipt => ReceiptService.MapReceipt(receipt, "Supplier")).ToList(),
                 RecentProducts = products.OrderByDescending(p => p.CreatedAt).Take(5).Select(ProductService.MapProduct).ToList(),
                 Notifications = notifications.Take(5).Select(n => new NotificationDto
                 {

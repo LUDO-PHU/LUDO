@@ -17,7 +17,8 @@ namespace BaseCore.Entities
         CancelledByUser,
         CancelledByAdmin,
         Rejected,
-        Cancelled
+        Cancelled,
+        ReturnedToStock
     }
 
     public enum ReceiptStatus

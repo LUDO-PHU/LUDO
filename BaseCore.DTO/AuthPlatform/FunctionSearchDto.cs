@@ -12,14 +12,14 @@ namespace BaseCore.DTO.AuthPlatform
 
     public class FunctionModel
     {
-        public string Id { get; set; }
-        public string Name { get; set; }
-        public string Description { get; set; }
+        public string? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
         public bool? IsActive { get; set; }
     }
 
     public class FunctionSearchResult : SearchResult
     {
-        public List<FunctionDto> Records { get; set; }
+        public List<FunctionDto> Records { get; set; } = new List<FunctionDto>();
     }
 }

@@ -73,5 +73,15 @@ namespace BaseCore.APIService.Controllers
 
             return ToActionResult(await _supplierRequestService.RejectBySupplierAsync(userId.Value, id, request ?? new RejectSupplierRequestDto()));
         }
+
+        [HttpDelete("/api/admin/supplier-requests/{id:int}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CancelByAdmin(int id, [FromQuery] string? reason)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null) return Unauthorized();
+
+            return ToActionResult(await _supplierRequestService.CancelByAdminAsync(userId.Value, id, reason));
+        }
     }
 }

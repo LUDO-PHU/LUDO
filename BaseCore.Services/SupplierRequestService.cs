@@ -338,9 +338,70 @@ namespace BaseCore.Services
                 Status = request.Status.ToString(),
                 RejectionReason = request.RejectionReason,
                 CreatedAt = request.CreatedAt,
-                UpdatedAt = request.UpdatedAt
+                UpdatedAt = request.UpdatedAt,
+                AllowedActions = GetAllowedActions(request.Status),
+                ProductImageUrl = request.Product?.ImageUrl ?? string.Empty
             };
         }
+
+        public async Task<ApiResponse<SupplierRequestDto>> CancelByAdminAsync(int adminId, int id, string? reason)
+        {
+            var supplierRequest = await _db.SupplierRequests
+                .Include(r => r.Admin)
+                .Include(r => r.Supplier).ThenInclude(s => s.User)
+                .Include(r => r.Category)
+                .Include(r => r.Product)
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            if (supplierRequest == null)
+            {
+                return ApiResponse<SupplierRequestDto>.Fail("Không tìm thấy yêu cầu nhà cung cấp");
+            }
+
+            if (supplierRequest.AdminId != adminId)
+            {
+                return ApiResponse<SupplierRequestDto>.Fail("Bạn không có quyền hủy yêu cầu này");
+            }
+
+            if (supplierRequest.Status != SupplierRequestStatus.Pending &&
+                supplierRequest.Status != SupplierRequestStatus.ApprovedBySupplier)
+            {
+                return ApiResponse<SupplierRequestDto>.Fail("Chỉ có thể hủy yêu cầu đang chờ hoặc đã được nhà cung cấp chấp nhận");
+            }
+
+            supplierRequest.Status = SupplierRequestStatus.Cancelled;
+            supplierRequest.RejectionReason = reason?.Trim() ?? string.Empty;
+            supplierRequest.UpdatedAt = DateTime.UtcNow;
+
+            _db.Notifications.Add(new Notification
+            {
+                UserId = supplierRequest.Supplier.UserId,
+                SupplierId = supplierRequest.SupplierId,
+                Title = "Yêu cầu nhập hàng đã bị hủy",
+                Message = string.IsNullOrWhiteSpace(reason)
+                    ? $"Quản trị viên đã hủy yêu cầu nhập hàng #{supplierRequest.Id}."
+                    : $"Quản trị viên đã hủy yêu cầu nhập hàng #{supplierRequest.Id}: {reason}",
+                Type = "SupplierRequestCancelled",
+                RelatedId = supplierRequest.Id,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _db.SaveChangesAsync();
+
+            return ApiResponse<SupplierRequestDto>.Ok(Map(supplierRequest), "Đã hủy yêu cầu nhà cung cấp");
+        }
+
+        private static IReadOnlyList<string> GetAllowedActions(SupplierRequestStatus status)
+        {
+            return status switch
+            {
+                SupplierRequestStatus.Pending => new[] { "approve", "reject", "cancel" },
+                SupplierRequestStatus.ApprovedBySupplier => new[] { "createReceipt", "cancel" },
+                _ => Array.Empty<string>()
+            };
+        }
+
 
         private static bool TryParseStatus(string? value, out SupplierRequestStatus? status)
         {

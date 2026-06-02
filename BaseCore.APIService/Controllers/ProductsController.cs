@@ -13,15 +13,18 @@ namespace BaseCore.APIService.Controllers
     {
         private readonly IProductService _productService;
         private readonly ISupplierService _supplierService;
+        private readonly IReviewService _reviewService;
         private readonly IWebHostEnvironment _environment;
 
         public ProductsController(
             IProductService productService,
             ISupplierService supplierService,
+            IReviewService reviewService,
             IWebHostEnvironment environment)
         {
             _productService = productService;
             _supplierService = supplierService;
+            _reviewService = reviewService;
             _environment = environment;
         }
 
@@ -50,7 +53,23 @@ namespace BaseCore.APIService.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetById(int id)
         {
-            return ToActionResult(await _productService.GetByIdDtoAsync(id));
+            var response = await _productService.GetByIdDtoAsync(id);
+            if (response.Success && response.Data != null && User.IsInRole("User"))
+            {
+                var userId = GetCurrentUserId();
+                if (userId.HasValue)
+                {
+                    var eligibility = await _reviewService.GetEligibilityAsync(userId.Value, id);
+                    if (eligibility.Success && eligibility.Data != null)
+                    {
+                        response.Data.CanReview = eligibility.Data.CanReview;
+                        response.Data.ReviewOrderId = eligibility.Data.OrderId;
+                        response.Data.ReviewDisabledReason = eligibility.Data.Reason;
+                    }
+                }
+            }
+
+            return ToActionResult(response);
         }
 
         [HttpGet("{id:int}/images")]
@@ -82,9 +101,35 @@ namespace BaseCore.APIService.Controllers
 
         [HttpPost]
         [Authorize(Roles = "Admin")]
+        [Consumes("application/json")]
         public async Task<IActionResult> Create([FromBody] CreateProductDto request)
         {
             var response = await _productService.CreateAsync(request);
+            if (response.Success)
+            {
+                return CreatedAtAction(nameof(GetById), new { id = response.Data!.Id }, response);
+            }
+            return BadRequest(response);
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> CreateFromForm([FromForm] ProductFormDto request)
+        {
+            var dto = request.ToCreateDto();
+            try
+            {
+                var urls = await SaveProductImagesAsync(request.ImageFile, request.ImageFiles, request.ImageUrl, request.ImageUrls);
+                dto.ImageUrls = urls;
+                dto.ImageUrl = urls.FirstOrDefault() ?? string.Empty;
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ApiResponse<ProductDto>.Fail("KhÃ´ng thá»ƒ táº£i áº£nh sáº£n pháº©m lÃªn", ex.Message));
+            }
+
+            var response = await _productService.CreateAsync(dto);
             if (response.Success)
             {
                 return CreatedAtAction(nameof(GetById), new { id = response.Data!.Id }, response);
@@ -122,9 +167,30 @@ namespace BaseCore.APIService.Controllers
 
         [HttpPut("{id:int}")]
         [Authorize(Roles = "Admin")]
+        [Consumes("application/json")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateProductDto request)
         {
             return ToActionResult(await _productService.UpdateAsync(id, request));
+        }
+
+        [HttpPut("{id:int}")]
+        [Authorize(Roles = "Admin")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UpdateFromForm(int id, [FromForm] ProductFormDto request)
+        {
+            var dto = request.ToUpdateDto();
+            try
+            {
+                var urls = await SaveProductImagesAsync(request.ImageFile, request.ImageFiles, request.ImageUrl, request.ImageUrls);
+                dto.ImageUrls = urls;
+                dto.ImageUrl = urls.FirstOrDefault() ?? string.Empty;
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ApiResponse<ProductDto>.Fail("KhÃ´ng thá»ƒ táº£i áº£nh sáº£n pháº©m lÃªn", ex.Message));
+            }
+
+            return ToActionResult(await _productService.UpdateAsync(id, dto));
         }
 
         [HttpPut("/api/supplier/products/{id:int}")]
@@ -243,43 +309,106 @@ namespace BaseCore.APIService.Controllers
         }
     }
 
-    public class SupplierProductFormDto
+    public class ProductFormDto
     {
-        public string NameVi { get; set; } = string.Empty;
-        public string NameEn { get; set; } = string.Empty;
-        public string DescriptionVi { get; set; } = string.Empty;
-        public string DescriptionEn { get; set; } = string.Empty;
-        public string Specifications { get; set; } = string.Empty;
+        public string? NameVi { get; set; }
+        public string? NameEn { get; set; }
+        public string? DescriptionVi { get; set; }
+        public string? Specifications { get; set; }
         public decimal Price { get; set; }
         public decimal ImportPrice { get; set; }
         public decimal DiscountPercent { get; set; }
-        public string ImageUrl { get; set; } = string.Empty;
-        public string ImageUrls { get; set; } = string.Empty;
+        public string? ImageUrl { get; set; }
+        public string? ImageUrls { get; set; }
         public IFormFile? ImageFile { get; set; }
         public List<IFormFile> ImageFiles { get; set; } = new();
-        public string Brand { get; set; } = string.Empty;
-        public string Color { get; set; } = string.Empty;
-        public string Condition { get; set; } = string.Empty;
-        public string Status { get; set; } = "Active";
+        public int CategoryId { get; set; }
+        public int? SupplierId { get; set; }
+        public string? Brand { get; set; }
+        public string? Color { get; set; }
+        public string? Condition { get; set; }
+        public string? Status { get; set; } = "Active";
+
+        public CreateProductDto ToCreateDto()
+        {
+            return new CreateProductDto
+            {
+                NameVi = NameVi ?? string.Empty,
+                NameEn = NameEn ?? string.Empty,
+                DescriptionVi = DescriptionVi ?? string.Empty,
+                Specifications = Specifications ?? string.Empty,
+                Price = Price,
+                ImportPrice = ImportPrice,
+                DiscountPercent = DiscountPercent,
+                ImageUrl = ImageUrl ?? string.Empty,
+                ImageUrls = Array.Empty<string>(),
+                CategoryId = CategoryId,
+                SupplierId = SupplierId,
+                Brand = Brand ?? string.Empty,
+                Color = Color ?? string.Empty,
+                Condition = Condition ?? string.Empty,
+                Status = string.IsNullOrWhiteSpace(Status) ? "Active" : Status
+            };
+        }
+
+        public UpdateProductDto ToUpdateDto()
+        {
+            return new UpdateProductDto
+            {
+                NameVi = NameVi ?? string.Empty,
+                NameEn = NameEn ?? string.Empty,
+                DescriptionVi = DescriptionVi ?? string.Empty,
+                Specifications = Specifications ?? string.Empty,
+                Price = Price,
+                ImportPrice = ImportPrice,
+                DiscountPercent = DiscountPercent,
+                ImageUrl = ImageUrl ?? string.Empty,
+                ImageUrls = Array.Empty<string>(),
+                CategoryId = CategoryId,
+                SupplierId = SupplierId,
+                Brand = Brand ?? string.Empty,
+                Color = Color ?? string.Empty,
+                Condition = Condition ?? string.Empty,
+                Status = string.IsNullOrWhiteSpace(Status) ? "Active" : Status
+            };
+        }
+    }
+
+    public class SupplierProductFormDto
+    {
+        public string? NameVi { get; set; }
+        public string? NameEn { get; set; }
+        public string? DescriptionVi { get; set; }
+        public string? Specifications { get; set; }
+        public decimal Price { get; set; }
+        public decimal ImportPrice { get; set; }
+        public decimal DiscountPercent { get; set; }
+        public string? ImageUrl { get; set; }
+        public string? ImageUrls { get; set; }
+        public IFormFile? ImageFile { get; set; }
+        public List<IFormFile> ImageFiles { get; set; } = new();
+        public string? Brand { get; set; }
+        public string? Color { get; set; }
+        public string? Condition { get; set; }
+        public string? Status { get; set; } = "Active";
 
         public SupplierProductUpsertDto ToDto()
         {
             return new SupplierProductUpsertDto
             {
-                NameVi = NameVi,
-                NameEn = NameEn,
-                DescriptionVi = DescriptionVi,
-                DescriptionEn = DescriptionEn,
-                Specifications = Specifications,
+                NameVi = NameVi ?? string.Empty,
+                NameEn = NameEn ?? string.Empty,
+                DescriptionVi = DescriptionVi ?? string.Empty,
+                Specifications = Specifications ?? string.Empty,
                 Price = Price,
                 ImportPrice = ImportPrice,
                 DiscountPercent = DiscountPercent,
-                ImageUrl = ImageUrl,
+                ImageUrl = ImageUrl ?? string.Empty,
                 ImageUrls = Array.Empty<string>(),
-                Brand = Brand,
-                Color = Color,
-                Condition = Condition,
-                Status = Status
+                Brand = Brand ?? string.Empty,
+                Color = Color ?? string.Empty,
+                Condition = Condition ?? string.Empty,
+                Status = string.IsNullOrWhiteSpace(Status) ? "Active" : Status
             };
         }
     }

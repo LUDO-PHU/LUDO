@@ -18,7 +18,6 @@ const emptyForm = (supplierId = '') => ({
     nameVi: '',
     nameEn: '',
     descriptionVi: '',
-    descriptionEn: '',
     specifications: '',
     price: 0,
     importPrice: 0,
@@ -41,12 +40,39 @@ const splitImageUrls = (value = '') =>
         .filter(Boolean)
         .filter((item, index, array) => array.findIndex(other => other.toLowerCase() === item.toLowerCase()) === index);
 
+const isPreviewableImageUrl = (url = '') =>
+    /^(blob:|data:image\/|https?:\/\/)/i.test(url) || /\.(jpe?g|png|webp|gif)(\?.*)?$/i.test(url);
+
+const buildProductFormData = (payload, files) => {
+    const formData = new FormData();
+    Object.entries({
+        nameVi: payload.nameVi,
+        nameEn: payload.nameEn,
+        descriptionVi: payload.descriptionVi,
+        specifications: payload.specifications,
+        price: payload.price,
+        importPrice: payload.importPrice,
+        discountPercent: payload.discountPercent,
+        imageUrl: payload.imageUrl,
+        imageUrls: payload.imageUrls.join('\n'),
+        categoryId: payload.categoryId,
+        supplierId: payload.supplierId ?? '',
+        brand: payload.brand,
+        color: payload.color,
+        condition: payload.condition,
+        status: payload.status,
+    }).forEach(([key, value]) => formData.append(key, value ?? ''));
+
+    files.forEach(file => formData.append('imageFiles', file));
+    return formData;
+};
+
 const ImageThumb = ({ product, size = 46 }) => {
     const imageUrl = getMainImage(product);
     return imageUrl ? (
         <img
             src={getImageUrl(imageUrl)}
-            alt={product?.nameVi || product?.nameEn || 'Sản phẩm'}
+            alt={product?.nameVi || 'Sản phẩm'}
             style={{ width: size, height: size, borderRadius: 8, objectFit: 'cover', border: '1px solid rgba(34, 211, 238, 0.25)', flex: `0 0 ${size}px` }}
             onError={event => { event.currentTarget.style.display = 'none'; }}
         />
@@ -68,7 +94,7 @@ const ImageGallery = ({ product }) => {
             <img
                 className="product-detail-main-image"
                 src={getImageUrl(images[0])}
-                alt={product.nameVi || product.nameEn || 'Sản phẩm'}
+                alt={product.nameVi || 'Sản phẩm'}
                 onError={event => { event.currentTarget.style.display = 'none'; }}
             />
             {images.length > 1 && (
@@ -77,7 +103,7 @@ const ImageGallery = ({ product }) => {
                         <img
                             key={`${url}-${index}`}
                             src={getImageUrl(url)}
-                            alt={`${product.nameVi || product.nameEn || 'Sản phẩm'} ${index + 2}`}
+                            alt={`${product.nameVi || 'Sản phẩm'} ${index + 2}`}
                             onError={event => { event.currentTarget.style.display = 'none'; }}
                         />
                     ))}
@@ -105,26 +131,26 @@ const ProductDetailModal = ({ product, isAdmin, isSupplier, onClose, onEdit, onD
                             <ImageGallery product={product} />
                         </div>
                         <div className="detail-grid product-detail-info-grid">
-                            <div className="detail-row product-title-row"><span className="detail-label">Tên sản phẩm</span><span className="detail-value primary">{product.nameVi || product.nameEn}</span></div>
-                            <div className="detail-row"><span className="detail-label">Danh mục</span><span className="detail-value">{product.categoryNameVi || product.categoryNameEn || 'Chưa phân loại'}</span></div>
-                            <div className="detail-row"><span className="detail-label">Nhà cung cấp</span><span className="detail-value">{product.supplierName || (product.supplierId ? `#${product.supplierId}` : 'Hệ thống')}</span></div>
-                            <div className="detail-row"><span className="detail-label">Giá bán</span><span className="detail-value large danger">{formatVnd(finalPrice(product))}</span></div>
-                            <div className="detail-row"><span className="detail-label">Giá nhập</span><span className="detail-value">{formatVnd(product.importPrice)}</span></div>
-                            <div className="detail-row"><span className="detail-label">Lợi nhuận dự kiến</span><span className="detail-value success">{formatVnd(profit)}</span></div>
-                            <div className="detail-row"><span className="detail-label">Tồn kho</span><span className="detail-value">{product.stock}</span></div>
+                            <div className="detail-row product-title-row"><span className="detail-label">Tên sản phẩm</span><span className="detail-value primary">{product.nameVi}</span></div>
+                            <div className="detail-row"><span className="detail-label">Danh mục</span><span className="detail-value">{product.categoryNameVi || 'Chưa phân loại'}</span></div>
+                            {!isSupplier && <div className="detail-row"><span className="detail-label">Nhà cung cấp</span><span className="detail-value">{product.supplierName || (product.supplierId ? `#${product.supplierId}` : 'Hệ thống')}</span></div>}
+                            {!isSupplier && <div className="detail-row"><span className="detail-label">Giá bán</span><span className="detail-value large danger">{formatVnd(finalPrice(product))}</span></div>}
+                            {!isSupplier && <div className="detail-row"><span className="detail-label">Giá nhập</span><span className="detail-value">{formatVnd(product.importPrice)}</span></div>}
+                            {!isSupplier && <div className="detail-row"><span className="detail-label">Lợi nhuận dự kiến</span><span className="detail-value success">{formatVnd(profit)}</span></div>}
+                            {!isSupplier && <div className="detail-row"><span className="detail-label">Tồn kho</span><span className="detail-value">{product.stock}</span></div>}
                             <div className="detail-row"><span className="detail-label">Thương hiệu</span><span className="detail-value">{product.brand || 'Chưa cập nhật'}</span></div>
                             <div className="detail-row"><span className="detail-label">Màu sắc</span><span className="detail-value">{product.color || 'Chưa cập nhật'}</span></div>
                             <div className="detail-row"><span className="detail-label">Tình trạng</span><span className="detail-value">{product.condition || 'Chưa cập nhật'}</span></div>
                             <div className="detail-row"><span className="detail-label">Giảm giá</span><span className="detail-value">{product.discountPercent || 0}%</span></div>
-                            <div className="detail-row"><span className="detail-label">Điểm thưởng</span><span className="detail-value">Chưa cấu hình</span></div>
-                            <div className="detail-row"><span className="detail-label">Trạng thái</span><span className={`badge ${status.badge}`}>{status.label}</span></div>
-                            <div className="detail-row"><span className="detail-label">Ngày nhập</span><span className="detail-value">{formatAppDate(product.createdAt)}</span></div>
+                            {!isSupplier && <div className="detail-row"><span className="detail-label">Điểm thưởng</span><span className="detail-value">Chưa cấu hình</span></div>}
+                            {!isSupplier && <div className="detail-row"><span className="detail-label">Trạng thái</span><span className={`badge ${status.badge}`}>{status.label}</span></div>}
+                            {!isSupplier && <div className="detail-row"><span className="detail-label">Ngày nhập</span><span className="detail-value">{formatAppDate(product.createdAt)}</span></div>}
                         </div>
                     </div>
 
                     <div className="detail-section">
                         <div className="section-title">Mô tả</div>
-                        <p className="detail-paragraph">{product.descriptionVi || product.descriptionEn || 'Chưa có mô tả'}</p>
+                        <p className="detail-paragraph">{product.descriptionVi || 'Chưa có mô tả'}</p>
                     </div>
 
                     <div className="detail-section">
@@ -163,7 +189,7 @@ const ProductFormModal = ({
     onClose,
     onSubmit,
 }) => {
-    const previewUrls = splitImageUrls(form.imageUrlsText);
+    const previewUrls = splitImageUrls(form.imageUrlsText).filter(isPreviewableImageUrl);
 
     return (
         <div className="modal-backdrop" onClick={onClose}>
@@ -175,51 +201,59 @@ const ProductFormModal = ({
 
                 <form onSubmit={onSubmit}>
                     <div className="modal-body">
-                        <div className="form-grid-2">
-                            <div className="form-group">
-                                <label className="form-label">Tên sản phẩm *</label>
-                                <input className="form-control" required value={form.nameVi} onChange={event => setForm(prev => ({ ...prev, nameVi: event.target.value }))} />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Tên tiếng Anh</label>
-                                <input className="form-control" value={form.nameEn} onChange={event => setForm(prev => ({ ...prev, nameEn: event.target.value }))} />
-                            </div>
+                        <div className="form-group">
+                            <label className="form-label">Tên sản phẩm *</label>
+                            <input className="form-control" required value={form.nameVi} onChange={event => setForm(prev => ({ ...prev, nameVi: event.target.value }))} />
                         </div>
 
-                        <div className="form-grid-2">
+                        {isSupplier ? (
                             <div className="form-group">
                                 <label className="form-label">Danh mục *</label>
-                                <select className="form-control" required value={form.categoryId} disabled={isSupplier} onChange={event => setForm(prev => ({ ...prev, categoryId: event.target.value }))}>
+                                <select className="form-control" required value={form.categoryId} disabled onChange={event => setForm(prev => ({ ...prev, categoryId: event.target.value }))}>
                                     <option value="">Chọn danh mục</option>
                                     {categories.map(category => (
-                                        <option key={category.id} value={category.id}>{category.nameVi || category.nameEn || category.name}</option>
+                                        <option key={category.id} value={category.id}>{category.nameVi || category.name}</option>
                                     ))}
                                 </select>
                             </div>
-                            <div className="form-group">
-                                <label className="form-label">Trạng thái</label>
-                                <select className="form-control" value={form.status} onChange={event => setForm(prev => ({ ...prev, status: event.target.value }))}>
-                                    {Object.entries(PRODUCT_STATUS).map(([value, item]) => (
-                                        <option key={value} value={value}>{item.label}</option>
-                                    ))}
-                                </select>
+                        ) : (
+                            <div className="form-grid-2">
+                                <div className="form-group">
+                                    <label className="form-label">Danh mục *</label>
+                                    <select className="form-control" required value={form.categoryId} onChange={event => setForm(prev => ({ ...prev, categoryId: event.target.value }))}>
+                                        <option value="">Chọn danh mục</option>
+                                        {categories.map(category => (
+                                            <option key={category.id} value={category.id}>{category.nameVi || category.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Trạng thái</label>
+                                    <select className="form-control" value={form.status} onChange={event => setForm(prev => ({ ...prev, status: event.target.value }))}>
+                                        {Object.entries(PRODUCT_STATUS).map(([value, item]) => (
+                                            <option key={value} value={value}>{item.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
-                        <div className="form-grid-3">
-                            <div className="form-group">
-                                <label className="form-label">Giá bán *</label>
-                                <input type="number" min={0} className="form-control" required value={form.price} onChange={event => setForm(prev => ({ ...prev, price: Number(event.target.value) }))} />
+                        {!isSupplier && (
+                            <div className="form-grid-3">
+                                <div className="form-group">
+                                    <label className="form-label">Giá bán *</label>
+                                    <input type="number" min={0} className="form-control" required value={form.price} onChange={event => setForm(prev => ({ ...prev, price: Number(event.target.value) }))} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Giá nhập</label>
+                                    <input type="number" min={0} className="form-control" value={form.importPrice} onChange={event => setForm(prev => ({ ...prev, importPrice: Number(event.target.value) }))} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Giảm giá (%)</label>
+                                    <input type="number" min={0} max={100} className="form-control" value={form.discountPercent} onChange={event => setForm(prev => ({ ...prev, discountPercent: Number(event.target.value) }))} />
+                                </div>
                             </div>
-                            <div className="form-group">
-                                <label className="form-label">Giá nhập</label>
-                                <input type="number" min={0} className="form-control" value={form.importPrice} onChange={event => setForm(prev => ({ ...prev, importPrice: Number(event.target.value) }))} />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Giảm giá (%)</label>
-                                <input type="number" min={0} max={100} className="form-control" value={form.discountPercent} onChange={event => setForm(prev => ({ ...prev, discountPercent: Number(event.target.value) }))} />
-                            </div>
-                        </div>
+                        )}
 
                         <div className="form-grid-3">
                             <div className="form-group">
@@ -237,14 +271,20 @@ const ProductFormModal = ({
                         </div>
 
                         {isAdmin && (
-                            <div className="form-group">
-                                <label className="form-label">Nhà cung cấp</label>
-                                <select className="form-control" value={form.supplierId || ''} onChange={event => setForm(prev => ({ ...prev, supplierId: event.target.value }))}>
-                                    <option value="">Không gán</option>
-                                    {suppliers.map(supplier => (
-                                        <option key={supplier.id} value={supplier.id}>{supplier.companyName} ({supplier.username || `#${supplier.id}`})</option>
-                                    ))}
-                                </select>
+                            <div className="form-grid-2">
+                                <div className="form-group">
+                                    <label className="form-label">Nhà cung cấp</label>
+                                    <select className="form-control" value={form.supplierId || ''} onChange={event => setForm(prev => ({ ...prev, supplierId: event.target.value }))}>
+                                        <option value="">Không gán</option>
+                                        {suppliers.map(supplier => (
+                                            <option key={supplier.id} value={supplier.id}>{supplier.companyName} ({supplier.username || `#${supplier.id}`})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Tồn kho hiện tại</label>
+                                    <input type="number" className="form-control" value={form.stock || 0} readOnly />
+                                </div>
                             </div>
                         )}
 
@@ -267,19 +307,17 @@ const ProductFormModal = ({
                             </div>
                         )}
 
-                        {isSupplier && (
-                            <div className="form-group">
-                                <label className="form-label">Tải thêm ảnh sản phẩm</label>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    className="form-control"
-                                    onChange={event => setImageFiles(Array.from(event.target.files || []))}
-                                />
-                                {imageFiles.length > 0 && <div className="detail-muted">{imageFiles.length} ảnh mới sẽ được tải lên</div>}
-                            </div>
-                        )}
+                        <div className="form-group">
+                            <label className="form-label">Tải thêm ảnh sản phẩm</label>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                className="form-control"
+                                onChange={event => setImageFiles(Array.from(event.target.files || []))}
+                            />
+                            {imageFiles.length > 0 && <div className="detail-muted">{imageFiles.length} ảnh mới sẽ được tải lên</div>}
+                        </div>
 
                         <div className="form-group">
                             <label className="form-label">Thông số kỹ thuật</label>
@@ -289,11 +327,6 @@ const ProductFormModal = ({
                         <div className="form-group">
                             <label className="form-label">Mô tả</label>
                             <textarea className="form-control" rows={4} value={form.descriptionVi} onChange={event => setForm(prev => ({ ...prev, descriptionVi: event.target.value }))} />
-                        </div>
-
-                        <div className="form-group">
-                            <label className="form-label">Tồn kho hiện tại</label>
-                            <input type="number" className="form-control" value={form.stock || 0} readOnly />
                         </div>
                     </div>
 
@@ -403,7 +436,7 @@ const Products = () => {
                 ...emptyForm(currentSupplierId),
                 ...product,
                 nameVi: product.nameVi || product.name || '',
-                nameEn: product.nameEn || product.nameVi || product.name || '',
+                nameEn: product.nameVi || product.name || '',
                 categoryId: product.categoryId || '',
                 status: product.status || 'Active',
                 supplierId: product.supplierId || '',
@@ -431,7 +464,7 @@ const Products = () => {
         }
 
         const nameVi = (form.nameVi || form.name || '').trim();
-        const nameEn = (form.nameEn || nameVi).trim();
+        const nameEn = nameVi;
         const imageUrls = splitImageUrls(form.imageUrlsText);
         const imageUrl = imageUrls[0] || form.imageUrl || '';
 
@@ -439,7 +472,6 @@ const Products = () => {
             nameVi,
             nameEn,
             descriptionVi: form.descriptionVi || '',
-            descriptionEn: form.descriptionEn || '',
             specifications: form.specifications || '',
             price: Number(form.price || 0),
             importPrice: Number(form.importPrice || 0),
@@ -456,30 +488,23 @@ const Products = () => {
 
         try {
             if (isSupplier) {
-                const formData = new FormData();
-                Object.entries({
-                    nameVi: payload.nameVi,
-                    nameEn: payload.nameEn,
-                    descriptionVi: payload.descriptionVi,
-                    descriptionEn: payload.descriptionEn,
-                    specifications: payload.specifications,
-                    price: payload.price,
-                    importPrice: payload.importPrice,
-                    discountPercent: payload.discountPercent,
-                    imageUrl: payload.imageUrl,
-                    imageUrls: payload.imageUrls.join('\n'),
-                    brand: payload.brand,
-                    color: payload.color,
-                    condition: payload.condition,
-                    status: payload.status,
-                }).forEach(([key, value]) => formData.append(key, value ?? ''));
-                imageFiles.forEach(file => formData.append('imageFiles', file));
+                const formData = buildProductFormData(payload, imageFiles);
 
                 if (isEdit) {
                     await productApi.updateSupplier(form.id, formData);
                     showToast('Đã cập nhật sản phẩm', 'success');
                 } else {
                     await productApi.createSupplier(formData);
+                    showToast('Đã thêm sản phẩm', 'success');
+                }
+            } else if (imageFiles.length > 0) {
+                const formData = buildProductFormData(payload, imageFiles);
+
+                if (isEdit) {
+                    await productApi.updateWithImages(form.id, formData);
+                    showToast('Đã cập nhật sản phẩm', 'success');
+                } else {
+                    await productApi.createWithImages(formData);
                     showToast('Đã thêm sản phẩm', 'success');
                 }
             } else if (isEdit) {
@@ -526,7 +551,7 @@ const Products = () => {
                         <input
                             type="text"
                             className="input-search"
-                            placeholder="Tìm tên, danh mục, thương hiệu..."
+                            placeholder={isSupplier ? 'Tìm theo tên sản phẩm hoặc màu sắc...' : 'Tìm tên, danh mục, thương hiệu...'}
                             value={params.keyword}
                             onChange={event => setParams(prev => ({ ...prev, keyword: event.target.value, page: 1 }))}
                         />
@@ -536,17 +561,19 @@ const Products = () => {
                         <select className="select-filter" value={params.categoryId} onChange={event => setParams(prev => ({ ...prev, categoryId: event.target.value, page: 1 }))}>
                             <option value="">Tất cả danh mục</option>
                             {categories.map(category => (
-                                <option key={category.id} value={category.id}>{category.nameVi || category.nameEn || category.name}</option>
+                                <option key={category.id} value={category.id}>{category.nameVi || category.name}</option>
                             ))}
                         </select>
                     )}
 
-                    <select className="select-filter" value={params.status} onChange={event => setParams(prev => ({ ...prev, status: event.target.value, page: 1 }))}>
-                        <option value="">Tất cả trạng thái</option>
-                        {Object.entries(PRODUCT_STATUS).map(([value, item]) => (
-                            <option key={value} value={value}>{item.label}</option>
-                        ))}
-                    </select>
+                    {!isSupplier && (
+                        <select className="select-filter" value={params.status} onChange={event => setParams(prev => ({ ...prev, status: event.target.value, page: 1 }))}>
+                            <option value="">Tất cả trạng thái</option>
+                            {Object.entries(PRODUCT_STATUS).map(([value, item]) => (
+                                <option key={value} value={value}>{item.label}</option>
+                            ))}
+                        </select>
+                    )}
 
                     <button className="btn btn-primary" onClick={() => openForm()}>
                         <i className="fa fa-plus" /> Thêm mới
@@ -559,10 +586,12 @@ const Products = () => {
                             <tr>
                                 <th style={{ width: 70 }}>ID</th>
                                 <th>Sản phẩm</th>
-                                <th>Giá bán</th>
+                                {!isSupplier && <th>Giá bán</th>}
                                 {isAdmin && <th>Giá nhập</th>}
-                                <th style={{ textAlign: 'center' }}>Tồn kho</th>
-                                <th>Trạng thái</th>
+                                {!isSupplier && <th style={{ textAlign: 'center' }}>Tồn kho</th>}
+                                {!isSupplier && <th>Trạng thái</th>}
+                                {isSupplier && <th>Thương hiệu</th>}
+                                {isSupplier && <th>Màu / Tình trạng</th>}
                                 <th style={{ textAlign: 'center', width: isAdmin ? 220 : 160 }}>Thao tác</th>
                             </tr>
                         </thead>
@@ -575,6 +604,7 @@ const Products = () => {
                                 </tr>
                             ) : products.length > 0 ? products.map(product => {
                                 const status = PRODUCT_STATUS[product.status] || { label: product.status || 'Chưa xác định', badge: 'badge-pending' };
+                                const productAvailable = Boolean(product.isAvailable ?? product.IsAvailable);
                                 return (
                                     <tr key={product.id} className="clickable" onClick={() => openDetail(product)}>
                                         <td className="id-column">#{product.id}</td>
@@ -582,18 +612,26 @@ const Products = () => {
                                             <div className="record-summary">
                                                 <ImageThumb product={product} />
                                                 <div className="record-copy">
-                                                    <div className="cust-name one-line">{product.nameVi || product.nameEn || product.name}</div>
-                                                    <div className="cust-phone one-line">{product.categoryNameVi || product.categoryNameEn || 'Chưa phân loại'}</div>
+                                                    <div className="cust-name one-line">{product.nameVi || product.name}</div>
+                                                    <div className="cust-phone one-line">{product.categoryNameVi || 'Chưa phân loại'}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
-                                            <div className="price-text">{formatVnd(finalPrice(product))}</div>
-                                            {product.discountPercent > 0 && <div className="cust-phone"><del>{formatVnd(product.price)}</del> -{product.discountPercent}%</div>}
-                                        </td>
+                                        {!isSupplier && (
+                                            <td>
+                                                <div className="price-text">{formatVnd(finalPrice(product))}</div>
+                                                {product.discountPercent > 0 && <div className="cust-phone"><del>{formatVnd(product.price)}</del> -{product.discountPercent}%</div>}
+                                            </td>
+                                        )}
                                         {isAdmin && <td className="profit-text">{formatVnd(product.importPrice)}</td>}
-                                        <td style={{ textAlign: 'center' }}><span className={`badge ${product.stock > 0 ? 'badge-completed' : 'badge-cancelled'}`}>{product.stock}</span></td>
-                                        <td><span className={`badge ${status.badge}`}>{status.label}</span></td>
+                                        {!isSupplier && <td style={{ textAlign: 'center' }}><span className={`badge ${productAvailable ? 'badge-completed' : 'badge-cancelled'}`}>{product.stock}</span></td>}
+                                        {!isSupplier && <td><span className={`badge ${status.badge}`}>{status.label}</span></td>}
+                                        {isSupplier && <td><span className="one-line">{product.brand || '—'}</span></td>}
+                                        {isSupplier && (
+                                            <td>
+                                                <span className="one-line">{[product.color, product.condition].filter(Boolean).join(' / ') || '—'}</span>
+                                            </td>
+                                        )}
                                         <td className="action-btns" onClick={event => event.stopPropagation()}>
                                             <div className="btn-group">
                                                 <button className="btn btn-secondary btn-sm" onClick={() => openDetail(product)}><i className="fa fa-eye" /> Xem chi tiết</button>
@@ -618,10 +656,18 @@ const Products = () => {
                     <div className="pagination-wrapper">
                         <div className="pagination">
                             <button className="btn-page" disabled={params.page === 1} onClick={() => setPage(params.page - 1)}>‹</button>
-                            {Array.from({ length: Math.min(totalPages, 7) }).map((_, index) => {
-                                const page = index + 1;
-                                return <button key={page} className={`btn-page ${params.page === page ? 'active' : ''}`} onClick={() => setPage(page)}>{page}</button>;
-                            })}
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => {
+                                const w = 2;
+                                return p === 1 || p === totalPages || (p >= params.page - w && p <= params.page + w);
+                            }).reduce((acc, p) => {
+                                if (acc.length > 0 && p - acc[acc.length - 1] > 1) acc.push('...');
+                                acc.push(p);
+                                return acc;
+                            }, []).map((p, idx) =>
+                                p === '...'
+                                    ? <span key={`ellipsis-${idx}`} className="btn-page btn-page-ellipsis">…</span>
+                                    : <button key={p} className={`btn-page ${params.page === p ? 'active' : ''}`} onClick={() => setPage(p)}>{p}</button>
+                            )}
                             <button className="btn-page" disabled={params.page === totalPages} onClick={() => setPage(params.page + 1)}>›</button>
                         </div>
                     </div>

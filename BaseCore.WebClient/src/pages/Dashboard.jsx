@@ -18,6 +18,7 @@ const STATUS_COLORS = {
     Shipping: '#2563eb',
     Completed: '#16a34a',
     Cancelled: '#ef4444',
+    ReturnedToStock: '#64748b',
 };
 
 const STATUS_VI = {
@@ -25,6 +26,7 @@ const STATUS_VI = {
     Shipping: 'Đang giao',
     Completed: 'Giao thành công',
     Cancelled: 'Đã hủy',
+    ReturnedToStock: 'Đã hoàn về kho',
 };
 
 const BADGE_CLASS = {
@@ -32,6 +34,7 @@ const BADGE_CLASS = {
     Shipping: 'badge-shipping',
     Completed: 'badge-completed',
     Cancelled: 'badge-cancelled',
+    ReturnedToStock: 'badge-returned',
 };
 
 const RECEIPT_STATUS_VI = {
@@ -267,6 +270,8 @@ const Dashboard = () => {
         { label: 'Đã hủy', value: stats?.cancelledOrders ?? 0, sub: 'Đơn bị hủy', color: '#dc2626', bg: '#fee2e2', icon: 'fa fa-ban' },
         { label: 'Sản phẩm', value: stats?.totalProducts ?? 0, sub: 'Đang kinh doanh', color: '#7c3aed', bg: '#ede9fe', icon: 'fa fa-box' },
         { label: 'Biên lai', value: stats?.totalReceipts ?? 0, sub: 'Nhập kho', color: '#0891b2', bg: '#cffafe', icon: 'fa fa-file-invoice' },
+        { label: 'Hoàn về kho', value: stats?.returnedToStockOrders ?? 0, sub: 'Đơn hàng hoàn kho', color: '#c2410c', bg: '#fff7ed', icon: 'fa fa-undo' },
+        { label: 'Yêu cầu đổi trả', value: stats?.exchangeRequestsCount ?? 0, sub: 'Yêu cầu đang chờ duyệt', color: '#06b6d4', bg: '#ecfeff', icon: 'fa fa-exchange-alt' },
     ];
 
     return (

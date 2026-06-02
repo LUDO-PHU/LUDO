@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
 :root {
     --primary: #00E5FF;
     --primary-dark: #0891b2;
@@ -39,7 +41,7 @@ body {
     min-height: 100vh;
     background: var(--bg);
     color: var(--text);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     line-height: 1.6;
 }
 
@@ -255,26 +257,16 @@ a {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: #fff;
-    color: #0f2742;
+    background: linear-gradient(135deg, #00E5FF, #0891b2);
+    color: #020617;
     font-weight: 900;
-    font-size: 0;
+    font-size: 15px;
     line-height: 1;
     box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.16), 0 8px 18px rgba(15, 76, 117, 0.12);
     position: relative;
     overflow: hidden;
-}
-
-.user-avatar::before {
-    content: "";
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background:
-        radial-gradient(circle at 50% 34%, #0f2742 0 22%, transparent 23%),
-        radial-gradient(ellipse at 50% 88%, #0f2742 0 38%, transparent 39%),
-        linear-gradient(135deg, #E0F2FE, #F8FAFC);
-    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.12);
+    letter-spacing: -0.5px;
+    user-select: none;
 }
 
 .user-avatar i {
@@ -326,7 +318,7 @@ a {
 }
 
 .user-chip.tier-silver .user-chip__text small {
-    color: #CBD5E1 !important;
+    color: #64748B !important;
 }
 
 .user-chip.tier-silver .user-chip__text strong::after {
@@ -761,16 +753,22 @@ a {
 }
 
 .banner-track {
+    position: relative;
     width: 100%;
     height: 100%;
-    display: flex;
-    transition: transform 0.58s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .banner-slide {
-    min-width: 100%;
-    height: 100%;
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
     background: #e0f7ff;
+}
+
+.banner-slide.is-active {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .banner-slide img {
@@ -780,35 +778,19 @@ a {
     object-fit: cover;
 }
 
-.banner-nav {
+.banner-dark-overlay {
     position: absolute;
-    top: 50%;
-    z-index: 2;
-    width: 46px;
-    height: 46px;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.78);
-    color: #0f2742;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transform: translateY(-50%);
-    box-shadow: 0 12px 26px rgba(15, 76, 117, 0.16);
-    transition: background 0.18s ease, transform 0.18s ease;
+    inset: 0;
+    z-index: 4;
+    background: #000;
+    opacity: 0;
+    transition: opacity 0.42s ease-in-out;
+    pointer-events: none;
+    border-radius: inherit;
 }
 
-.banner-nav:hover {
-    background: rgba(224, 247, 255, 0.92);
-    transform: translateY(-50%) scale(1.04);
-}
-
-.banner-nav--prev {
-    left: 18px;
-}
-
-.banner-nav--next {
-    right: 18px;
+.banner-dark-overlay.is-dark {
+    opacity: 0.92;
 }
 
 .shop-hero__copy {
@@ -934,31 +916,6 @@ a {
 
 .hero-product-card strong {
     font-size: 20px;
-}
-
-.hero-dots {
-    position: absolute;
-    left: 50%;
-    bottom: 20px;
-    z-index: 2;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 8px;
-}
-
-.hero-dots button {
-    width: 9px;
-    height: 9px;
-    padding: 0;
-    border: 0;
-    border-radius: 99px;
-    background: rgba(255, 255, 255, 0.45);
-    box-shadow: 0 3px 10px rgba(15, 76, 117, 0.14);
-}
-
-.hero-dots button.is-active {
-    width: 34px;
-    background: #fff;
 }
 
 .shop-main-layout {
@@ -1212,7 +1169,7 @@ a {
 .catalog-card:hover {
     transform: translateY(-8px);
     border-color: var(--primary);
-    box-shadow: 0 20px 40px rgba(99, 102, 241, 0.12);
+    box-shadow: 0 20px 40px rgba(0, 229, 255, 0.15), 0 0 20px rgba(0, 229, 255, 0.1);
 }
 
 .catalog-card__image {
@@ -1583,14 +1540,15 @@ a {
     top: 92px;
     right: 24px;
     z-index: 9999;
-    min-width: 280px;
+    min-width: 320px;
     max-width: min(420px, calc(100vw - 32px));
-    padding: 14px 16px;
+    padding: 16px 20px;
     border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.94);
-    color: var(--text);
-    box-shadow: var(--shadow-lg);
-    font-weight: 750;
+    background: rgba(255, 255, 255, 0.98);
+    color: #0f172a !important;
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    box-shadow: 0 10px 30px rgba(15, 76, 117, 0.12), 0 0 18px rgba(0, 229, 255, 0.15);
+    font-weight: 600;
 }
 
 .cart-container {
@@ -1704,19 +1662,6 @@ a {
         height: clamp(220px, 58vw, 360px);
     }
 
-    .banner-nav {
-        width: 38px;
-        height: 38px;
-    }
-
-    .banner-nav--prev {
-        left: 10px;
-    }
-
-    .banner-nav--next {
-        right: 10px;
-    }
-
     .shop-hero__media {
         min-height: 260px;
     }
@@ -1766,28 +1711,29 @@ a {
 .customer-shell,
 .auth-screen {
     --primary: #00E5FF;
-    --primary-dark: #0e7490;
-    --primary-light: rgba(14, 165, 233, 0.14);
-    --primary-glow: rgba(14, 165, 233, 0.24);
-    --secondary: #06b6d4;
-    --accent: #22D3EE;
-    --bg: #eef8ff;
-    --surface: rgba(255, 255, 255, 0.9);
-    --surface-soft: rgba(231, 246, 255, 0.9);
-    --border: rgba(14, 116, 144, 0.22);
-    --text: #0f2742;
-    --muted: #5b7188;
-    --shadow-sm: 0 0 0 1px rgba(14, 165, 233, 0.12), 0 8px 24px rgba(15, 76, 117, 0.12);
-    --shadow-md: 0 0 0 1px rgba(14, 165, 233, 0.16), 0 18px 44px rgba(15, 76, 117, 0.16);
-    --shadow-lg: 0 0 36px rgba(34, 211, 238, 0.16), 0 24px 64px rgba(15, 76, 117, 0.20);
+    --primary-dark: #0891b2;
+    --primary-light: rgba(0, 229, 255, 0.08);
+    --primary-glow: rgba(0, 229, 255, 0.25);
+    --secondary: #0ea5e9;
+    --accent: #22d3ee;
+    --bg: #f0f9ff;
+    --surface: rgba(255, 255, 255, 0.88);
+    --surface-soft: rgba(240, 249, 255, 0.85);
+    --border: rgba(0, 229, 255, 0.25);
+    --text: #0f172a;
+    --muted: #475569;
+    --shadow-sm: 0 4px 12px rgba(15, 23, 42, 0.03), 0 0 0 1px rgba(0, 229, 255, 0.12);
+    --shadow-md: 0 12px 32px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(0, 229, 255, 0.16);
+    --shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.08), 0 0 32px rgba(0, 229, 255, 0.12);
 }
 
 .customer-shell,
 .auth-screen {
     background:
-        radial-gradient(circle at 12% 8%, rgba(0, 229, 255, 0.18), transparent 28rem),
-        radial-gradient(circle at 85% 12%, rgba(125, 211, 252, 0.22), transparent 30rem),
-        linear-gradient(180deg, #f7fcff 0%, #edf8ff 48%, #eaf9ff 100%) !important;
+        radial-gradient(circle at 5% 5%, rgba(0, 229, 255, 0.15), transparent 45rem),
+        radial-gradient(circle at 95% 5%, rgba(34, 211, 238, 0.15), transparent 45rem),
+        radial-gradient(circle at 50% 50%, rgba(240, 249, 255, 0.4), transparent 60rem),
+        linear-gradient(180deg, #f8fafc 0%, #f0f9ff 50%, #e0f2fe 100%) !important;
     color: var(--text) !important;
 }
 

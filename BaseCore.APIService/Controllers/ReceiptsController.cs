@@ -25,7 +25,7 @@ namespace BaseCore.APIService.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetAll()
         {
-            return ToActionResult(await _receiptService.GetAllAsync());
+            return ToActionResult(await _receiptService.GetAllAsync("Admin"));
         }
 
         [HttpGet("my")]
@@ -38,7 +38,7 @@ namespace BaseCore.APIService.Controllers
             if (supplier == null) return Forbid();
 
             request.SupplierId = supplier.Id;
-            return ToActionResult(await _receiptService.SearchAsync(request));
+            return ToActionResult(await _receiptService.SearchAsync(request, "Supplier"));
         }
 
         [HttpGet("search")]
@@ -53,13 +53,13 @@ namespace BaseCore.APIService.Controllers
                 request.SupplierId = supplier.Id;
             }
 
-            return ToActionResult(await _receiptService.SearchAsync(request));
+            return ToActionResult(await _receiptService.SearchAsync(request, User.IsInRole("Admin") ? "Admin" : "Supplier"));
         }
 
         [HttpGet("{id:int}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var response = await _receiptService.GetByIdAsync(id);
+            var response = await _receiptService.GetByIdAsync(id, User.IsInRole("Admin") ? "Admin" : "Supplier");
             if (response.Success && response.Data != null && !User.IsInRole("Admin"))
             {
                 var supplier = await GetCurrentSupplierAsync();
@@ -120,7 +120,6 @@ namespace BaseCore.APIService.Controllers
         {
             if (!User.IsInRole("Admin"))
             {
-                // Supplier chỉ được hủy đơn khi Pending
                 var receipt = await _receiptService.GetByIdAsync(id);
                 if (receipt.Data == null) return NotFound(receipt);
                 

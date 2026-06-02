@@ -2,6 +2,8 @@ using BaseCore.DTO.Response;
 using BaseCore.DTO.Sales;
 using BaseCore.Entities;
 using BaseCore.Repository.EFCore;
+using System.Globalization;
+using System.Text;
 
 namespace BaseCore.Services
 {
@@ -184,9 +186,88 @@ namespace BaseCore.Services
                 NameVi = category.NameVi,
                 NameEn = category.NameEn,
                 Description = category.Description,
+                IconClass = ResolveIconClass(category),
                 IsActive = category.IsActive,
                 ProductCount = await _categoryRepository.CountProductsAsync(category.Id)
             };
+        }
+
+        private static string ResolveIconClass(Category category)
+        {
+            var source = NormalizeIconText($"{category.NameVi} {category.NameEn} {category.Description}");
+
+            if (ContainsAny(source, "man hinh", "screen", "display", "lcd", "oled"))
+                return "fa fa-mobile-screen";
+
+            if (ContainsAny(source, "pin", "battery"))
+                return "fa fa-battery-full";
+
+            if (ContainsAny(source, "camera", "cum camera", "camera module"))
+                return "fa fa-camera";
+
+            if (ContainsAny(source, "loa", "chuong", "speaker", "ringer", "sound"))
+                return "fa fa-volume-high";
+
+            if (ContainsAny(source, "vo", "suon", "khung", "nap lung", "housing", "case", "frame", "cover"))
+                return "fa fa-mobile";
+
+            if (ContainsAny(source, "sac", "chan sac", "cap", "cable", "charger", "charging", "usb"))
+                return "fa fa-plug";
+
+            if (ContainsAny(source, "mic", "micro", "microphone"))
+                return "fa fa-microphone";
+
+            if (ContainsAny(source, "cam ung", "touch", "touchscreen", "digitizer"))
+                return "fa fa-hand-pointer";
+
+            if (ContainsAny(source, "kinh", "cuong luc", "glass", "tempered", "protector"))
+                return "fa fa-shield-halved";
+
+            if (ContainsAny(source, "ic", "chip", "main", "mainboard", "board", "linh kien main", "component"))
+                return "fa fa-microchip";
+
+            if (ContainsAny(source, "sim"))
+                return "fa fa-sim-card";
+
+            if (ContainsAny(source, "tai nghe", "headphone", "earphone"))
+                return "fa fa-headphones";
+
+            if (ContainsAny(source, "nut", "phim", "button", "key"))
+                return "fa fa-toggle-on";
+
+            if (ContainsAny(source, "tool", "sua chua", "repair", "dung cu", "phu kien"))
+                return "fa fa-screwdriver-wrench";
+
+            return "fa fa-tag";
+        }
+
+        private static bool ContainsAny(string source, params string[] keywords)
+        {
+            return keywords.Any(source.Contains);
+        }
+
+        private static string NormalizeIconText(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            var normalized = value.Normalize(NormalizationForm.FormD);
+            var builder = new StringBuilder(normalized.Length);
+
+            foreach (var character in normalized)
+            {
+                var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(character);
+                if (unicodeCategory == UnicodeCategory.NonSpacingMark)
+                    continue;
+
+                builder.Append(character switch
+                {
+                    'đ' or 'Đ' => 'd',
+                    _ => char.ToLowerInvariant(character)
+                });
+            }
+
+            return builder.ToString().Normalize(NormalizationForm.FormC);
         }
 
         private static List<string> ValidateCategory(string? nameVi, string? nameEn)

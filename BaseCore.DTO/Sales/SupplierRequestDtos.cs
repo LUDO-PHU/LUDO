@@ -20,6 +20,8 @@ namespace BaseCore.DTO.Sales
         public string RejectionReason { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        public IReadOnlyList<string> AllowedActions { get; set; } = Array.Empty<string>();
+        public string ProductImageUrl { get; set; } = string.Empty;
     }
 
     public class CreateSupplierRequestDto

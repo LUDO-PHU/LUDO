@@ -26,12 +26,11 @@ namespace BaseCore.Repository
         public DbSet<Notification> Notifications { get; set; } = null!;
         public DbSet<Review> Reviews { get; set; } = null!;
         public DbSet<CartItem> CartItems { get; set; } = null!;
+        public DbSet<ReturnRequest> ReturnRequests { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-
-            // Configure Entity Constraints and Relationships
 
             modelBuilder.Entity<User>(entity =>
             {
@@ -255,6 +254,7 @@ namespace BaseCore.Repository
                 entity.HasOne(e => e.Order)
                       .WithMany()
                       .HasForeignKey(e => e.OrderId)
+                      .IsRequired(false)
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
@@ -272,7 +272,24 @@ namespace BaseCore.Repository
                       .OnDelete(DeleteBehavior.Cascade);
             });
 
-            // Seed Data
+            modelBuilder.Entity<ReturnRequest>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Reason).IsRequired();
+                entity.Property(e => e.ImageUrl).IsRequired();
+                entity.Property(e => e.AdminComment).IsRequired();
+
+                entity.HasOne(e => e.Order)
+                      .WithMany()
+                      .HasForeignKey(e => e.OrderId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
             BaseCoreSalesSeeder.Seed(modelBuilder);
         }
     }

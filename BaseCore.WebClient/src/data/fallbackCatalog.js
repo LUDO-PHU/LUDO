@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://127.0.0.1:5001';
+const API_BASE_URL = 'http://127.0.0.1:5000';
 
 export const getImageUrl = (url, apiBaseUrl = API_BASE_URL) => {
     if (!url) return '/images/products/capsac.jpg';
@@ -11,4 +11,4 @@ export const formatVnd = (amount) =>
     new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
 
 export const finalPrice = (product) =>
-    Math.round((product?.price || 0) * (1 - (product?.discountPercent || 0) / 100));
+    Number(product?.finalPrice ?? product?.FinalPrice ?? product?.price ?? product?.Price ?? 0);

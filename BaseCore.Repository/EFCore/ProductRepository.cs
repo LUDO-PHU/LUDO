@@ -61,7 +61,6 @@ namespace BaseCore.Repository.EFCore
                     p.Brand.ToLower().Contains(kw) ||
                     p.Specifications.ToLower().Contains(kw) ||
                     p.DescriptionVi.ToLower().Contains(kw) ||
-                    p.DescriptionEn.ToLower().Contains(kw) ||
                     (p.Category != null && p.Category.NameVi.ToLower().Contains(kw)) ||
                     (p.Category != null && p.Category.NameEn.ToLower().Contains(kw)));
             }
@@ -114,16 +113,16 @@ namespace BaseCore.Repository.EFCore
             var desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
             query = sort switch
             {
-                "priceasc" => query.OrderBy(p => p.Price * (100 - p.DiscountPercent) / 100).ThenByDescending(p => p.Id),
-                "pricedesc" => query.OrderByDescending(p => p.Price * (100 - p.DiscountPercent) / 100).ThenByDescending(p => p.Id),
-                "price" => desc ? query.OrderByDescending(p => p.Price * (100 - p.DiscountPercent) / 100).ThenByDescending(p => p.Id) : query.OrderBy(p => p.Price * (100 - p.DiscountPercent) / 100).ThenByDescending(p => p.Id),
-                "discountdesc" => query.OrderByDescending(p => p.DiscountPercent).ThenByDescending(p => p.Id),
-                "nameasc" => query.OrderBy(p => p.NameVi).ThenByDescending(p => p.Id),
-                "namedesc" => query.OrderByDescending(p => p.NameVi).ThenByDescending(p => p.Id),
-                "name" => desc ? query.OrderByDescending(p => p.NameVi).ThenByDescending(p => p.Id) : query.OrderBy(p => p.NameVi).ThenByDescending(p => p.Id),
-                "stock" => desc ? query.OrderByDescending(p => p.Stock).ThenByDescending(p => p.Id) : query.OrderBy(p => p.Stock).ThenByDescending(p => p.Id),
+                "priceasc" => query.OrderBy(p => p.Price * (100 - p.DiscountPercent) / 100).ThenBy(p => p.Id),
+                "pricedesc" => query.OrderByDescending(p => p.Price * (100 - p.DiscountPercent) / 100).ThenBy(p => p.Id),
+                "price" => desc ? query.OrderByDescending(p => p.Price * (100 - p.DiscountPercent) / 100).ThenBy(p => p.Id) : query.OrderBy(p => p.Price * (100 - p.DiscountPercent) / 100).ThenBy(p => p.Id),
+                "discountdesc" => query.OrderByDescending(p => p.DiscountPercent).ThenBy(p => p.Id),
+                "nameasc" => query.OrderBy(p => p.NameVi).ThenBy(p => p.Id),
+                "namedesc" => query.OrderByDescending(p => p.NameVi).ThenBy(p => p.Id),
+                "name" => desc ? query.OrderByDescending(p => p.NameVi).ThenBy(p => p.Id) : query.OrderBy(p => p.NameVi).ThenBy(p => p.Id),
+                "stock" => desc ? query.OrderByDescending(p => p.Stock).ThenBy(p => p.Id) : query.OrderBy(p => p.Stock).ThenBy(p => p.Id),
                 "createdat" => desc ? query.OrderByDescending(p => p.CreatedAt) : query.OrderBy(p => p.CreatedAt),
-                _ => query.OrderByDescending(p => p.Id),
+                _ => query.OrderBy(p => p.Id),
             };
 
             var totalCount = await query.CountAsync();

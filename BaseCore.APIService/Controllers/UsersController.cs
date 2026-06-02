@@ -17,10 +17,6 @@ namespace BaseCore.APIService.Controllers
             _userService = userService;
         }
 
-        // ======================================================
-        // PROFILE — Bất kỳ user đăng nhập đều có thể tự cập nhật
-        // PUT /api/users/profile
-        // ======================================================
         [HttpPut("profile")]
         [Authorize]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto request)
@@ -30,9 +26,6 @@ namespace BaseCore.APIService.Controllers
             return ToActionResult(await _userService.UpdateProfileAsync(userId.Value, request));
         }
 
-        // ======================================================
-        // ADMIN ONLY — Quản lý user
-        // ======================================================
         [HttpGet]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetAll([FromQuery] UserSearchRequestDto request)

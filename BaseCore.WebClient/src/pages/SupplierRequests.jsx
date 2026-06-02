@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supplierRequestApi, unwrapPagedData } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { getImageUrl } from '../data/fallbackCatalog';
 import { formatAppDate, formatAppDateTime } from '../utils/dateTime';
 import { REQUEST_STATUS, formatVnd } from '../utils/display';
 import '../styles/admin.css';
@@ -11,12 +12,16 @@ const RequestStatusBadge = ({ status }) => {
     return <span className={`badge ${item.badge}`}>{item.label}</span>;
 };
 
+const getAllowedActions = (item) => item?.allowedActions || item?.AllowedActions || [];
+
 const RequestDetailModal = ({ item, onClose, onApprove, onReject, onCreateReceipt }) => {
     if (!item) return null;
+    const allowedActions = getAllowedActions(item);
+    const productLabel = item.productName || item.requestedProductName || `Sản phẩm #${item.productId}`;
 
     return (
         <div className="modal-backdrop" onClick={onClose}>
-            <div className="modal-box modal-box-lg" onClick={event => event.stopPropagation()}>
+            <div className="modal-box modal-box-md" onClick={event => event.stopPropagation()}>
                 <div className="modal-header">
                     <h3>Chi tiết yêu cầu #{item.id}</h3>
                     <button className="modal-close" onClick={onClose}>×</button>
@@ -24,18 +29,46 @@ const RequestDetailModal = ({ item, onClose, onApprove, onReject, onCreateReceip
                 <div className="modal-body">
                     <div className="detail-grid">
                         <div className="detail-row"><span className="detail-label">Mã yêu cầu</span><span className="detail-value primary">#{item.id}</span></div>
-                        <div className="detail-row"><span className="detail-label">Sản phẩm</span><span className="detail-value">{item.productName || item.requestedProductName || 'Yêu cầu sản phẩm mới'}</span></div>
                         <div className="detail-row"><span className="detail-label">Danh mục</span><span className="detail-value">{item.categoryName || 'Chưa phân loại'}</span></div>
-                        <div className="detail-row"><span className="detail-label">Người tạo yêu cầu</span><span className="detail-value">{item.adminName || `#${item.adminId}`}</span></div>
-                        <div className="detail-row"><span className="detail-label">Số lượng</span><span className="detail-value">{item.quantity}</span></div>
-                        <div className="detail-row"><span className="detail-label">Giá đề xuất</span><span className="detail-value large danger">{formatVnd(item.suggestedPrice)}</span></div>
+                        <div className="detail-row"><span className="detail-label">Người tạo yêu cầu</span><span className="detail-value">{item.adminName || 'Quản trị viên'}</span></div>
                         <div className="detail-row"><span className="detail-label">Ngày tạo</span><span className="detail-value">{formatAppDateTime(item.createdAt)}</span></div>
                         <div className="detail-row"><span className="detail-label">Trạng thái</span><RequestStatusBadge status={item.status} /></div>
                     </div>
 
                     <div className="detail-section">
-                        <div className="section-title">Ghi chú</div>
-                        <div className="detail-paragraph">{item.note || 'Không có ghi chú'}</div>
+                        <div className="section-title">Thông tin sản phẩm yêu cầu</div>
+                        <div className="detail-row receipt-product-card" style={{ padding: '14px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: 10 }}>
+                            <div className="record-summary">
+                                {item.productImageUrl ? (
+                                    <img src={getImageUrl(item.productImageUrl)} alt="" className="record-thumb" style={{ width: 60, height: 60, borderRadius: 8 }} onError={event => { event.currentTarget.style.display = 'none'; }} />
+                                ) : (
+                                    <div className="record-thumb-fallback" style={{ width: 60, height: 60, borderRadius: 8, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 24 }}><i className="fa fa-tag" /></div>
+                                )}
+                                <div className="record-copy" style={{ marginLeft: 12 }}>
+                                    <span className="cust-name" style={{ fontSize: 15, fontWeight: 600 }}>{productLabel}</span>
+                                    <span className="cust-phone" style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>{item.productId ? `Mã sản phẩm: #${item.productId}` : 'Sản phẩm mới (nhập tay)'}</span>
+                                </div>
+                            </div>
+                            <div className="detail-grid" style={{ marginTop: 14 }}>
+                                <div>
+                                    <span className="detail-label">Số lượng yêu cầu</span>
+                                    <span className="detail-value large">{item.quantity}</span>
+                                </div>
+                                <div>
+                                    <span className="detail-label">Giá đề xuất</span>
+                                    <span className="detail-value danger">{item.suggestedPrice > 0 ? formatVnd(item.suggestedPrice) : '—'}</span>
+                                </div>
+                                <div>
+                                    <span className="detail-label">Thành tiền tạm tính</span>
+                                    <span className="detail-value danger" style={{ fontWeight: 700 }}>{item.suggestedPrice > 0 ? formatVnd(item.quantity * item.suggestedPrice) : '—'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="detail-section">
+                        <div className="section-title">Ghi chú từ quản trị viên</div>
+                        <div className="detail-paragraph" style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: 8, borderLeft: '3px solid #6366f1' }}>{item.note || 'Không có ghi chú'}</div>
                     </div>
 
                     {item.rejectionReason && (
@@ -47,13 +80,13 @@ const RequestDetailModal = ({ item, onClose, onApprove, onReject, onCreateReceip
                 </div>
                 <div className="modal-footer">
                     <button className="btn btn-secondary" onClick={onClose}>Đóng</button>
-                    {item.status === 'Pending' && (
+                    {(allowedActions.includes('approve') || allowedActions.includes('reject')) && (
                         <>
-                            <button className="btn btn-danger" onClick={() => onReject(item.id)}>Từ chối</button>
-                            <button className="btn btn-success" onClick={() => onApprove(item.id)}>Duyệt</button>
+                            {allowedActions.includes('reject') && <button className="btn btn-danger" onClick={() => onReject(item.id)}>Từ chối</button>}
+                            {allowedActions.includes('approve') && <button className="btn btn-success" onClick={() => onApprove(item.id)}>Duyệt</button>}
                         </>
                     )}
-                    {item.status === 'ApprovedBySupplier' && (
+                    {allowedActions.includes('createReceipt') && (
                         <button className="btn btn-primary" onClick={() => onCreateReceipt(item)}>Tạo biên lai</button>
                     )}
                 </div>
@@ -173,13 +206,22 @@ const SupplierRequests = () => {
                         <tbody>
                             {loading ? (
                                 <tr><td colSpan="7" style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}><i className="fa fa-spinner fa-spin" style={{ fontSize: 24 }} /></td></tr>
-                            ) : requests.length > 0 ? requests.map(item => (
+                            ) : requests.length > 0 ? requests.map(item => {
+                                const allowedActions = getAllowedActions(item);
+                                return (
                                 <tr key={item.id} className="clickable" onClick={() => setSelected(item)}>
                                     <td className="id-column">#{item.id}</td>
                                     <td>
-                                        <div className="record-copy">
-                                            <span className="cust-name one-line">{item.productName || item.requestedProductName || 'Yêu cầu sản phẩm mới'}</span>
-                                            <span className="cust-phone one-line">Người tạo: {item.adminName || `#${item.adminId}`}</span>
+                                        <div className="record-summary">
+                                            {item.productImageUrl ? (
+                                                <img src={getImageUrl(item.productImageUrl)} alt="" className="record-thumb" onError={event => { event.currentTarget.style.display = 'none'; }} />
+                                            ) : (
+                                                <div className="record-thumb-fallback" style={{ width: 40, height: 40, borderRadius: 6, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 18 }}><i className="fa fa-tag" /></div>
+                                            )}
+                                            <div className="record-copy">
+                                                <span className="cust-name one-line" style={{ maxWidth: 180 }}>{item.productName || item.requestedProductName || 'Yêu cầu sản phẩm mới'}</span>
+                                                <span className="cust-phone one-line">{item.productId ? `Mã SP: #${item.productId}` : `Người tạo: ${item.adminName || 'Quản trị viên'}`}</span>
+                                            </div>
                                         </div>
                                     </td>
                                     <td style={{ textAlign: 'center' }}><span className="qty">{item.quantity}</span></td>
@@ -189,12 +231,13 @@ const SupplierRequests = () => {
                                     <td className="action-btns" onClick={event => event.stopPropagation()}>
                                         <div className="btn-group">
                                             <button className="btn btn-secondary btn-sm" onClick={() => setSelected(item)}><i className="fa fa-eye" /> Xem chi tiết</button>
-                                            {item.status === 'Pending' && <button className="btn btn-success btn-sm" onClick={() => approve(item.id)}>Duyệt</button>}
-                                            {item.status === 'ApprovedBySupplier' && <button className="btn btn-primary btn-sm" onClick={() => createReceiptFromApproved(item)}>Tạo biên lai</button>}
+                                            {allowedActions.includes('approve') && <button className="btn btn-success btn-sm" onClick={() => approve(item.id)}>Duyệt</button>}
+                                            {allowedActions.includes('createReceipt') && <button className="btn btn-primary btn-sm" onClick={() => createReceiptFromApproved(item)}>Tạo biên lai</button>}
                                         </div>
                                     </td>
                                 </tr>
-                            )) : (
+                                );
+                            }) : (
                                 <tr><td colSpan="7" className="empty-state"><div className="empty-content"><i className="fa fa-envelope-open" /><p>Chưa có yêu cầu nào</p></div></td></tr>
                             )}
                         </tbody>
@@ -205,9 +248,18 @@ const SupplierRequests = () => {
                     <div className="pagination-wrapper">
                         <div className="pagination">
                             <button className="btn-page" disabled={params.page === 1} onClick={() => setParams(prev => ({ ...prev, page: prev.page - 1 }))}>‹</button>
-                            {Array.from({ length: Math.min(totalPages, 7) }).map((_, index) => (
-                                <button key={index + 1} className={`btn-page ${params.page === index + 1 ? 'active' : ''}`} onClick={() => setParams(prev => ({ ...prev, page: index + 1 }))}>{index + 1}</button>
-                            ))}
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => {
+                                const w = 2;
+                                return p === 1 || p === totalPages || (p >= params.page - w && p <= params.page + w);
+                            }).reduce((acc, p) => {
+                                if (acc.length > 0 && p - acc[acc.length - 1] > 1) acc.push('...');
+                                acc.push(p);
+                                return acc;
+                            }, []).map((p, idx) =>
+                                p === '...'
+                                    ? <span key={`ellipsis-${idx}`} className="btn-page btn-page-ellipsis">…</span>
+                                    : <button key={p} className={`btn-page ${params.page === p ? 'active' : ''}`} onClick={() => setParams(prev => ({ ...prev, page: p }))}>{p}</button>
+                            )}
                             <button className="btn-page" disabled={params.page === totalPages} onClick={() => setParams(prev => ({ ...prev, page: prev.page + 1 }))}>›</button>
                         </div>
                     </div>

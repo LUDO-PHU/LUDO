@@ -28,15 +28,14 @@ namespace BaseCore.Services
                 Id = i.Id,
                 ProductId = i.ProductId,
                 ProductName = i.Product?.NameVi ?? "Không xác định",
-                ImageUrl = i.Product == null ? string.Empty : ProductService.GetMainImage(i.Product),
+                ImageUrl = !string.IsNullOrEmpty(i.SelectedImageUrl) ? i.SelectedImageUrl : (i.Product == null ? string.Empty : ProductService.GetMainImage(i.Product)),
                 Price = i.Product == null
                     ? 0
-                    : Math.Round(i.Product.Price * (1 - i.Product.DiscountPercent / 100), 2),
+                    : ProductService.CalculateFinalPrice(i.Product),
                 Quantity = i.Quantity,
+                CreatedAt = i.CreatedAt,
                 ProductStock = i.Product?.Stock ?? 0,
-                IsAvailable = i.Product != null &&
-                    i.Product.Stock > 0 &&
-                    string.Equals(i.Product.Status, "Active", StringComparison.OrdinalIgnoreCase)
+                IsAvailable = i.Product != null && ProductService.IsAvailableForSale(i.Product)
             }).ToList();
 
             return ApiResponse<List<CartItemDto>>.Ok(dtos);
@@ -59,6 +58,7 @@ namespace BaseCore.Services
             if (existing != null)
             {
                 existing.Quantity = nextQuantity;
+                existing.SelectedImageUrl = request.SelectedImageUrl;
                 await _cartRepository.UpdateAsync(existing);
             }
             else
@@ -68,7 +68,8 @@ namespace BaseCore.Services
                     UserId = userId,
                     ProductId = request.ProductId,
                     Quantity = request.Quantity,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    SelectedImageUrl = request.SelectedImageUrl
                 });
             }
 

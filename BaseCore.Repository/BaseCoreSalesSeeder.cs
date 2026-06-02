@@ -52,7 +52,6 @@ namespace BaseCore.Repository
                         NameVi = $"{namePrefix} {i}",
                         NameEn = $"{namePrefix} {i} (EN)",
                         DescriptionVi = $"Mô tả chi tiết cho {namePrefix} {i}",
-                        DescriptionEn = $"Detailed description for {namePrefix} {i}",
                         Specifications = "Original 100%, Warranty 12 months",
                         Price = basePrice + (i * 10000),
                         ImportPrice = (basePrice + (i * 10000)) * 0.7m,

@@ -17,6 +17,7 @@ import Users from './pages/Users';
 import Suppliers from './pages/Suppliers';
 import SupplierDashboard from './pages/SupplierDashboard';
 import SupplierRequests from './pages/SupplierRequests';
+import ReturnRequests from './pages/ReturnRequests';
 
 // Pages Customer
 import CustomerHome from './pages/customer/Home';
@@ -55,6 +56,7 @@ export default function App() {
                             <Route index element={<IndexRedirect />} />
                             <Route path="products" element={<Products />} />
                             <Route path="orders" element={<ProtectedRoute roles={[1]}><Orders /></ProtectedRoute>} />
+                            <Route path="returns" element={<ProtectedRoute roles={[1]}><ReturnRequests /></ProtectedRoute>} />
                             <Route path="receipts" element={<Receipts />} />
                             <Route path="categories" element={<ProtectedRoute roles={[1]}><Categories /></ProtectedRoute>} />
                             <Route path="users" element={<ProtectedRoute roles={[1]}><Users /></ProtectedRoute>} />

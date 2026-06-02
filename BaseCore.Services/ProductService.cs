@@ -1,7 +1,9 @@
 using BaseCore.DTO.Response;
 using BaseCore.DTO.Sales;
 using BaseCore.Entities;
+using BaseCore.Repository;
 using BaseCore.Repository.EFCore;
+using Microsoft.EntityFrameworkCore;
 
 namespace BaseCore.Services
 {
@@ -10,15 +12,18 @@ namespace BaseCore.Services
         private readonly IProductRepositoryEF _productRepository;
         private readonly ICategoryRepositoryEF _categoryRepository;
         private readonly ISupplierRepositoryEF _supplierRepository;
+        private readonly BaseCoreSalesContext _db;
 
         public ProductService(
             IProductRepositoryEF productRepository,
             ICategoryRepositoryEF categoryRepository,
-            ISupplierRepositoryEF supplierRepository)
+            ISupplierRepositoryEF supplierRepository,
+            BaseCoreSalesContext db)
         {
             _productRepository = productRepository;
             _categoryRepository = categoryRepository;
             _supplierRepository = supplierRepository;
+            _db = db;
         }
 
         public async Task<ApiResponse<PagedResult<ProductDto>>> SearchAsync(ProductSearchRequestDto request)
@@ -98,7 +103,6 @@ namespace BaseCore.Services
                 NameVi = request.NameVi.Trim(),
                 NameEn = request.NameEn.Trim(),
                 DescriptionVi = request.DescriptionVi?.Trim() ?? string.Empty,
-                DescriptionEn = request.DescriptionEn?.Trim() ?? string.Empty,
                 Specifications = request.Specifications?.Trim() ?? string.Empty,
                 Price = request.Price,
                 ImportPrice = request.ImportPrice,
@@ -144,7 +148,6 @@ namespace BaseCore.Services
             existing.NameVi = request.NameVi.Trim();
             existing.NameEn = request.NameEn.Trim();
             existing.DescriptionVi = request.DescriptionVi?.Trim() ?? string.Empty;
-            existing.DescriptionEn = request.DescriptionEn?.Trim() ?? string.Empty;
             existing.Specifications = request.Specifications?.Trim() ?? string.Empty;
             existing.Price = request.Price;
             existing.ImportPrice = request.ImportPrice;
@@ -159,6 +162,15 @@ namespace BaseCore.Services
             existing.Stock = currentStock;
             existing.UpdatedAt = DateTime.UtcNow;
             SyncProductImages(existing, request.ImageUrls);
+
+            // Cập nhật giá nhập của các lô hàng cũ/legacy để tránh lỗi lợi nhuận âm
+            var legacyBatches = await _db.StockBatches
+                .Where(b => b.ProductId == existing.Id && b.ReceiptId == null)
+                .ToListAsync();
+            foreach (var batch in legacyBatches)
+            {
+                batch.UnitImportPrice = existing.ImportPrice;
+            }
 
             await _productRepository.UpdateAsync(existing);
             var updated = await _productRepository.GetByIdWithDetailsAsync(existing.Id) ?? existing;
@@ -215,7 +227,6 @@ namespace BaseCore.Services
             existing.NameVi = product.NameVi;
             existing.NameEn = product.NameEn;
             existing.DescriptionVi = product.DescriptionVi;
-            existing.DescriptionEn = product.DescriptionEn;
             existing.Specifications = product.Specifications;
             existing.Price = product.Price;
             existing.ImportPrice = product.ImportPrice;
@@ -229,6 +240,15 @@ namespace BaseCore.Services
             existing.SupplierId = product.SupplierId;
             existing.Stock = currentStock;
             existing.UpdatedAt = DateTime.UtcNow;
+
+            // Cập nhật giá nhập của các lô hàng cũ/legacy để tránh lỗi lợi nhuận âm
+            var legacyBatches = await _db.StockBatches
+                .Where(b => b.ProductId == existing.Id && b.ReceiptId == null)
+                .ToListAsync();
+            foreach (var batch in legacyBatches)
+            {
+                batch.UnitImportPrice = existing.ImportPrice;
+            }
 
             await _productRepository.UpdateAsync(existing);
         }
@@ -325,6 +345,7 @@ namespace BaseCore.Services
         {
             var images = MapProductImages(product);
             var mainImage = GetMainImage(product, images);
+            var isAvailable = IsAvailableForSale(product);
 
             return new ProductDto
             {
@@ -332,12 +353,14 @@ namespace BaseCore.Services
                 NameVi = product.NameVi,
                 NameEn = product.NameEn,
                 DescriptionVi = product.DescriptionVi,
-                DescriptionEn = product.DescriptionEn,
                 Specifications = product.Specifications,
                 Price = product.Price,
+                FinalPrice = CalculateFinalPrice(product),
                 ImportPrice = product.ImportPrice,
                 DiscountPercent = product.DiscountPercent,
                 Stock = product.Stock,
+                IsAvailable = isAvailable,
+                AvailabilityText = GetAvailabilityText(product, isAvailable),
                 ImageUrl = mainImage,
                 MainImage = mainImage,
                 Images = images,
@@ -415,6 +438,34 @@ namespace BaseCore.Services
                 ?? images.FirstOrDefault()?.ImageUrl
                 ?? (!string.IsNullOrWhiteSpace(product.ImageUrl) ? product.ImageUrl.Trim() : string.Empty)
                 ?? string.Empty;
+        }
+
+        public static decimal CalculateFinalPrice(Product product)
+        {
+            return Math.Round(product.Price * (1 - product.DiscountPercent / 100), 2);
+        }
+
+        public static bool IsAvailableForSale(Product product)
+        {
+            if (product.Stock <= 0)
+            {
+                return false;
+            }
+
+            var status = product.Status?.Trim().ToLowerInvariant();
+            return status is "" or null or "active" or "instock" or "available" or "dangban" or "conhang";
+        }
+
+        private static string GetAvailabilityText(Product product, bool isAvailable)
+        {
+            if (isAvailable)
+            {
+                return $"C\u00f2n {product.Stock} s\u1ea3n ph\u1ea9m";
+            }
+
+            return product.Stock <= 0
+                ? "H\u1ebft h\u00e0ng"
+                : "Kh\u00f4ng kh\u1ea3 d\u1ee5ng";
         }
 
         private static void SyncProductImages(Product product, IReadOnlyList<string>? requestedUrls)
@@ -544,7 +595,6 @@ namespace BaseCore.Services
                 NameVi = request.NameVi,
                 NameEn = string.IsNullOrWhiteSpace(request.NameEn) ? request.NameVi : request.NameEn,
                 DescriptionVi = request.DescriptionVi,
-                DescriptionEn = request.DescriptionEn,
                 Specifications = request.Specifications,
                 Price = request.Price,
                 ImportPrice = request.ImportPrice,
@@ -570,7 +620,6 @@ namespace BaseCore.Services
                 NameVi = nameVi,
                 NameEn = string.IsNullOrWhiteSpace(request.NameEn) ? nameVi : request.NameEn.Trim(),
                 DescriptionVi = existing.DescriptionVi,
-                DescriptionEn = existing.DescriptionEn,
                 Specifications = existing.Specifications,
                 Price = existing.Price,
                 ImportPrice = existing.ImportPrice,

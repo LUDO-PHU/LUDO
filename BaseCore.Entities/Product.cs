@@ -9,7 +9,6 @@ namespace BaseCore.Entities
         public string NameVi { get; set; } = string.Empty;
         public string NameEn { get; set; } = string.Empty;
         public string DescriptionVi { get; set; } = string.Empty;
-        public string DescriptionEn { get; set; } = string.Empty;
         public string Specifications { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public decimal ImportPrice { get; set; }

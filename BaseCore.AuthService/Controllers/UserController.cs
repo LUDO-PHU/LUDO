@@ -70,7 +70,7 @@ namespace BaseCore.AuthService.Controllers
         }
 
         [HttpPut("profile")]
-        public async Task<IActionResult> UpdateProfile([FromBody] UpdateUserDto request)
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto request)
         {
             var currentUserId = GetCurrentUserId();
             if (currentUserId == null)
@@ -78,21 +78,30 @@ namespace BaseCore.AuthService.Controllers
                 return Unauthorized();
             }
 
-            NormalizeUpdateRequest(request);
-            var existing = await _userService.GetByIdAsync(currentUserId.Value);
-            if (!existing.Success || existing.Data == null)
+            return ToActionResult(await _userService.UpdateProfileAsync(currentUserId.Value, request));
+        }
+
+        [HttpPatch("{id:int}/toggle-active")]
+        [HttpPut("{id:int}/toggle-active")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ToggleActive(int id)
+        {
+            var user = await _userService.GetByIdAsync(id);
+            if (user.Data == null)
             {
-                return ToActionResult(existing);
+                return NotFound(user);
             }
 
-            request.Role = existing.Data.Role;
-            request.IsActive = existing.Data.IsActive;
-            if (string.IsNullOrWhiteSpace(request.FullName))
+            var request = new UpdateUserDto
             {
-                request.FullName = existing.Data.FullName;
-            }
+                FullName = user.Data.FullName,
+                Email = user.Data.Email,
+                Phone = user.Data.Phone,
+                IsActive = !user.Data.IsActive,
+                Role = user.Data.Role
+            };
 
-            return ToActionResult(await _userService.UpdateAsync(currentUserId.Value, request));
+            return ToActionResult(await _userService.UpdateAsync(id, request));
         }
 
         [HttpDelete("{id:int}")]

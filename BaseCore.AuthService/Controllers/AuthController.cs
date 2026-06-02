@@ -1,6 +1,8 @@
 using BaseCore.DTO.Sales;
 using BaseCore.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace BaseCore.AuthService.Controllers
 {
@@ -26,6 +28,20 @@ namespace BaseCore.AuthService.Controllers
         public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
         {
             var response = await _authService.RegisterAsync(request);
+            return response.Success ? Ok(response) : BadRequest(response);
+        }
+
+        [HttpGet("me")]
+        [Authorize]
+        public async Task<IActionResult> Me()
+        {
+            var value = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(value, out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _authService.GetCurrentUserAsync(userId);
             return response.Success ? Ok(response) : BadRequest(response);
         }
     }

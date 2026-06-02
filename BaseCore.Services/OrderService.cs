@@ -32,7 +32,7 @@ namespace BaseCore.Services
             _db = db;
         }
 
-        public async Task<ApiResponse<PagedResult<OrderDto>>> SearchAsync(OrderSearchRequestDto request)
+        public async Task<ApiResponse<PagedResult<OrderDto>>> SearchAsync(OrderSearchRequestDto request, string? viewerRole = "Admin")
         {
             request ??= new OrderSearchRequestDto();
             NormalizePaging(request);
@@ -57,7 +57,7 @@ namespace BaseCore.Services
 
             return ApiResponse<PagedResult<OrderDto>>.Ok(new PagedResult<OrderDto>
             {
-                Items = orders.Select(MapOrder).ToList(),
+                Items = orders.Select(order => MapOrder(order, viewerRole)).ToList(),
                 TotalCount = totalCount,
                 Page = request.Page,
                 PageSize = request.PageSize
@@ -67,7 +67,7 @@ namespace BaseCore.Services
         public async Task<ApiResponse<IReadOnlyList<OrderDto>>> GetAllAsync()
         {
             var orders = await _orderRepository.GetAllWithDetailsAsync();
-            return ApiResponse<IReadOnlyList<OrderDto>>.Ok(orders.Select(MapOrder).ToList());
+            return ApiResponse<IReadOnlyList<OrderDto>>.Ok(orders.Select(order => MapOrder(order, "Admin")).ToList());
         }
 
         public async Task<ApiResponse<IReadOnlyList<OrderDto>>> GetByUserIdDtoAsync(int userId)
@@ -78,10 +78,10 @@ namespace BaseCore.Services
             }
 
             var orders = await _orderRepository.GetByUserAsync(userId);
-            return ApiResponse<IReadOnlyList<OrderDto>>.Ok(orders.Select(MapOrder).ToList());
+            return ApiResponse<IReadOnlyList<OrderDto>>.Ok(orders.Select(order => MapOrder(order, "User")).ToList());
         }
 
-        public async Task<ApiResponse<OrderDto>> GetByIdDtoAsync(int id)
+        public async Task<ApiResponse<OrderDto>> GetByIdDtoAsync(int id, string? viewerRole = null)
         {
             if (id <= 0)
             {
@@ -91,7 +91,7 @@ namespace BaseCore.Services
             var order = await _orderRepository.GetWithDetailsAsync(id);
             return order == null
                 ? ApiResponse<OrderDto>.Fail("Không tìm thấy đơn hàng")
-                : ApiResponse<OrderDto>.Ok(MapOrder(order));
+                : ApiResponse<OrderDto>.Ok(MapOrder(order, viewerRole));
         }
 
         public async Task<ApiResponse<OrderDto>> CreateAsync(CreateOrderDto request)
@@ -124,12 +124,26 @@ namespace BaseCore.Services
 
             var requestedItems = request.Items
                 .GroupBy(i => i.ProductId)
-                .Select(g => new CreateOrderItemDto { ProductId = g.Key, Quantity = g.Sum(x => x.Quantity) })
+                .Select(g => new CreateOrderItemDto 
+                { 
+                    ProductId = g.Key, 
+                    Quantity = g.Sum(x => x.Quantity),
+                    SelectedImageUrl = g.First().SelectedImageUrl 
+                })
                 .ToList();
 
             await using var transaction = await _db.Database.BeginTransactionAsync();
             try
             {
+                decimal userTotalSpent = 0;
+                if (user != null)
+                {
+                    var userOrders = await _db.Orders.Where(o => o.UserId == user.Id && o.Status == OrderStatus.Completed).ToListAsync();
+                    userTotalSpent = userOrders.Sum(o => o.TotalAmount);
+                }
+                string userTier = GetMemberTier(userTotalSpent);
+                decimal tierDiscountRate = GetTierDiscountRate(userTier);
+
                 var orderDetails = new List<OrderDetail>();
                 decimal totalAmount = 0;
                 decimal totalImportCost = 0;
@@ -192,7 +206,11 @@ namespace BaseCore.Services
                         });
                     }
 
-                    var finalPrice = Math.Round(product.Price * (1 - product.DiscountPercent / 100), 2);
+                    decimal basePrice = Math.Round(product.Price * (1m - product.DiscountPercent / 100m), 2);
+                    decimal quantityDiscountRate = item.Quantity >= 3 ? 0.10m : 0m;
+                    decimal itemDiscountRate = tierDiscountRate + quantityDiscountRate;
+                    
+                    var finalPrice = Math.Round(basePrice * (1m - itemDiscountRate), 2);
                     var lineTotal = finalPrice * item.Quantity;
                     var weightedUnitImportPrice = item.Quantity <= 0 ? 0 : Math.Round(lineImportCost / item.Quantity, 2);
 
@@ -214,8 +232,14 @@ namespace BaseCore.Services
                         TotalPrice = lineTotal,
                         TotalImportCost = lineImportCost,
                         Profit = lineTotal - lineImportCost,
-                        StockAllocations = allocations
+                        StockAllocations = allocations,
+                        SelectedImageUrl = item.SelectedImageUrl
                     });
+                }
+
+                if (totalAmount > 5000000m)
+                {
+                    totalAmount = Math.Round(totalAmount * 0.80m, 2);
                 }
 
                 var order = new Order
@@ -250,7 +274,7 @@ namespace BaseCore.Services
                 await transaction.CommitAsync();
 
                 var created = await _orderRepository.GetWithDetailsAsync(order.Id) ?? order;
-                return ApiResponse<OrderDto>.Ok(MapOrder(created), "Đã tạo đơn hàng");
+                return ApiResponse<OrderDto>.Ok(MapOrder(created, "User"), "Đã tạo đơn hàng");
             }
             catch (Exception ex)
             {
@@ -288,7 +312,8 @@ namespace BaseCore.Services
                 Items = cartItems.Select(item => new CreateOrderItemDto
                 {
                     ProductId = item.ProductId,
-                    Quantity = item.Quantity
+                    Quantity = item.Quantity,
+                    SelectedImageUrl = item.SelectedImageUrl
                 }).ToList()
             });
         }
@@ -323,6 +348,7 @@ namespace BaseCore.Services
                     => await CancelAsync(id, isAdmin: true, request.CancelReason),
                 OrderStatus.Delivered => ApiResponse<OrderDto>.Fail("Trạng thái đã giao không hợp lệ trong luồng này. Người dùng phải xác nhận đã nhận hàng để hoàn tất đơn"),
                 OrderStatus.Pending => ApiResponse<OrderDto>.Fail("Không thể chuyển đơn hàng về trạng thái chờ xử lý"),
+                OrderStatus.ReturnedToStock => ApiResponse<OrderDto>.Fail("Không thể chuyển thủ công sang trạng thái hoàn về kho. Trạng thái này được xử lý tự động."),
                 _ => ApiResponse<OrderDto>.Fail("Trạng thái đơn hàng không hợp lệ")
             };
         }
@@ -362,7 +388,7 @@ namespace BaseCore.Services
                 $"Đơn #{order.OrderCode} đang được giao.",
                 $"/customer/orders?orderId={order.Id}");
 
-            return ApiResponse<OrderDto>.Ok(MapOrder(order), "Đã duyệt đơn hàng");
+            return ApiResponse<OrderDto>.Ok(MapOrder(order, "Admin"), "Đã duyệt đơn hàng");
         }
 
         public async Task<ApiResponse<OrderDto>> MarkReceivedAsync(int id)
@@ -425,7 +451,7 @@ namespace BaseCore.Services
                 $"Đơn #{order.OrderCode} đã giao thành công.",
                 $"/customer/orders?orderId={order.Id}");
 
-            return ApiResponse<OrderDto>.Ok(MapOrder(order), "Đã xác nhận nhận hàng");
+            return ApiResponse<OrderDto>.Ok(MapOrder(order, "User"), "Đã xác nhận nhận hàng");
         }
 
         public async Task<ApiResponse<OrderDto>> CancelAsync(int id, bool isAdmin, string? cancelReason = null)
@@ -480,7 +506,51 @@ namespace BaseCore.Services
                     $"/customer/orders?orderId={order.Id}");
             }
 
-            return ApiResponse<OrderDto>.Ok(MapOrder(order), "Đã hủy đơn hàng");
+            return ApiResponse<OrderDto>.Ok(MapOrder(order, isAdmin ? "Admin" : "User"), "Đã hủy đơn hàng");
+        }
+
+        public async Task<ApiResponse<OrderDto>> ReturnToStockAsync(int id)
+        {
+            if (id <= 0)
+            {
+                return ApiResponse<OrderDto>.Fail("Mã đơn hàng không hợp lệ");
+            }
+
+            var order = await _orderRepository.GetWithDetailsAsync(id);
+            if (order == null)
+            {
+                return ApiResponse<OrderDto>.Fail("Không tìm thấy đơn hàng");
+            }
+
+            if (!IsShippingStatus(order.Status))
+            {
+                return ApiResponse<OrderDto>.Fail("Chỉ có thể hoàn về kho đơn hàng đang trong trạng thái giao hàng");
+            }
+
+            await using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                order.Status = OrderStatus.ReturnedToStock;
+                order.ReturnedAt = DateTime.UtcNow;
+                ApplyOrderTimestamp(order, OrderStatus.ReturnedToStock, null);
+
+                await _orderRepository.UpdateAsync(order);
+                await RestoreStockAsync(order);
+                await transaction.CommitAsync();
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return ApiResponse<OrderDto>.Fail("Không thể hoàn hàng về kho", ex.Message);
+            }
+
+            await _notificationService.CreateSystemNotificationAsync(
+                order.UserId,
+                "Đơn hàng đã hoàn về kho",
+                $"Đơn #{order.OrderCode} đã tự động hoàn về kho do không xác nhận nhận hàng sau 3 ngày.",
+                $"/customer/orders?orderId={order.Id}");
+
+            return ApiResponse<OrderDto>.Ok(MapOrder(order, "Admin"), "Đã hoàn hàng về kho");
         }
 
         public async Task<Order> CreateOrderAsync(Order order)
@@ -508,7 +578,7 @@ namespace BaseCore.Services
             return await _orderRepository.GetWithDetailsAsync(id);
         }
 
-        public static OrderDto MapOrder(Order order)
+        public static OrderDto MapOrder(Order order, string? viewerRole = null)
         {
             return new OrderDto
             {
@@ -537,6 +607,8 @@ namespace BaseCore.Services
                 DeliveredAt = order.DeliveredAt,
                 CompletedAt = order.CompletedAt,
                 CancelledAt = order.CancelledAt,
+                ReturnedAt = order.ReturnedAt,
+                AllowedActions = GetAllowedOrderActions(order.Status, viewerRole),
                 Details = order.OrderDetails.Select(MapOrderDetail).ToList()
             };
         }
@@ -550,13 +622,15 @@ namespace BaseCore.Services
                 ? string.Empty
                 : ProductService.GetMainImage(detail.Product, productImages);
 
+            var imageUrl = !string.IsNullOrEmpty(detail.SelectedImageUrl) ? detail.SelectedImageUrl : mainImage;
+
             return new OrderDetailDto
             {
                 Id = detail.Id,
                 ProductId = detail.ProductId,
                 ProductName = detail.Product?.NameVi ?? string.Empty,
-                ImageUrl = mainImage,
-                MainImage = mainImage,
+                ImageUrl = imageUrl,
+                MainImage = imageUrl,
                 ProductImages = productImages,
                 Quantity = detail.Quantity,
                 UnitPrice = detail.UnitPrice,
@@ -588,6 +662,9 @@ namespace BaseCore.Services
                 case OrderStatus.Rejected:
                     order.CancelledAt ??= now;
                     order.CancelReason = cancelReason?.Trim() ?? order.CancelReason;
+                    break;
+                case OrderStatus.ReturnedToStock:
+                    order.ReturnedAt ??= now;
                     break;
             }
         }
@@ -772,6 +849,11 @@ namespace BaseCore.Services
                 return new[] { OrderStatus.Cancelled, OrderStatus.CancelledByUser, OrderStatus.CancelledByAdmin, OrderStatus.Rejected };
             }
 
+            if (status == OrderStatus.ReturnedToStock)
+            {
+                return new[] { OrderStatus.ReturnedToStock };
+            }
+
             return Array.Empty<OrderStatus>();
         }
 
@@ -800,6 +882,93 @@ namespace BaseCore.Services
                    status == OrderStatus.Rejected;
         }
 
+        private static string GetMemberTier(decimal totalSpent)
+        {
+            if (totalSpent >= 50000000) return "Kim cương";
+            if (totalSpent >= 20000000) return "Vàng";
+            if (totalSpent >= 5000000) return "Bạc";
+            return "Đồng";
+        }
+
+        private static decimal GetTierDiscountRate(string tier)
+        {
+            return tier switch
+            {
+                "Kim cương" => 0.10m,
+                "Vàng" => 0.07m,
+                "Bạc" => 0.05m,
+                "Đồng" => 0.02m,
+                _ => 0m
+            };
+        }
+
+        private static IReadOnlyList<string> GetAllowedOrderActions(OrderStatus status, string? viewerRole)
+        {
+            var role = viewerRole?.Trim().ToLowerInvariant();
+
+            if (IsPendingStatus(status))
+            {
+                if (role == "user")
+                {
+                    return new[] { "cancel" };
+                }
+
+                if (role == "admin")
+                {
+                    return new[] { "confirm", "cancel" };
+                }
+
+                return new[] { "confirm", "cancel" };
+            }
+
+            if (IsShippingStatus(status))
+            {
+                if (role == "user")
+                {
+                    return new[] { "receive" };
+                }
+
+                if (role == "admin")
+                {
+                    return new[] { "cancel" };
+                }
+
+                return new[] { "cancel", "receive" };
+            }
+
+            if (status == OrderStatus.ReturnedToStock)
+            {
+                if (role == "user")
+                {
+                    return new[] { "reorder" };
+                }
+
+                return Array.Empty<string>();
+            }
+
+            if (IsCompletedStatus(status))
+            {
+                if (role == "user")
+                {
+                    return new[] { "reorder", "review" };
+                }
+
+                return Array.Empty<string>();
+            }
+
+            if (IsCancelledStatus(status))
+            {
+                if (role == "user")
+                {
+                    return new[] { "reorder" };
+                }
+
+                return Array.Empty<string>();
+            }
+
+            return Array.Empty<string>();
+        }
+
         public static string ToPublicStatus(OrderStatus status)
         {
             if (IsPendingStatus(status))
@@ -820,6 +989,11 @@ namespace BaseCore.Services
             if (IsCancelledStatus(status))
             {
                 return "Cancelled";
+            }
+
+            if (status == OrderStatus.ReturnedToStock)
+            {
+                return "ReturnedToStock";
             }
 
             return status.ToString();

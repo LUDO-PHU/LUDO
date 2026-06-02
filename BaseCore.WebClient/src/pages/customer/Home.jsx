@@ -10,13 +10,16 @@ import {
 } from '../../data/fallbackCatalog';
 
 const TOP_BANNERS = [
-
-    { id: 'B2', imageUrl: '/images/banner/B2.jpg' },
-    { id: 'B3', imageUrl: '/images/banner/B3.png' },
-    { id: 'B4', imageUrl: '/images/banner/B4.png' },
-    { id: 'B5', imageUrl: '/images/banner/B5.png' },
-    { id: 'B6', imageUrl: '/images/banner/B6.png' },
+    { id: 'B1', imageUrl: '/images/banner/B1n.png' },
+    { id: 'B2', imageUrl: '/images/banner/B2n.png' },
+    { id: 'B3', imageUrl: '/images/banner/B3n.png' },
+    { id: 'B4', imageUrl: '/images/banner/B4n.png' },
+    { id: 'B5', imageUrl: '/images/banner/B5n.png' },
+    { id: 'B6', imageUrl: '/images/banner/B6n.png' },
 ];
+
+const isProductAvailable = (product) => Boolean(product?.isAvailable ?? product?.IsAvailable);
+const getAvailabilityText = (product) => product?.availabilityText ?? product?.AvailabilityText ?? '';
 
 const Home = () => {
     const navigate = useNavigate();
@@ -35,6 +38,7 @@ const Home = () => {
     const [categories, setCategories] = useState([]);
     const [totalPages, setTotalPages] = useState(1);
     const [topBannerIdx, setTopBannerIdx] = useState(0);
+    const [isBannerDark, setIsBannerDark] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -89,14 +93,14 @@ const Home = () => {
     useEffect(() => {
         if (displayBanners.length <= 1) return undefined;
         const timer = window.setInterval(() => {
-            setTopBannerIdx(index => (index + 1) % displayBanners.length);
+            setIsBannerDark(true);
+            window.setTimeout(() => {
+                setTopBannerIdx(index => (index + 1) % displayBanners.length);
+                setIsBannerDark(false);
+            }, 480);
         }, 5000);
         return () => window.clearInterval(timer);
     }, [displayBanners.length]);
-
-    const moveBanner = (direction) => {
-        setTopBannerIdx(index => (index + direction + displayBanners.length) % displayBanners.length);
-    };
 
     const setCategoryFilter = (catId) => {
         const params = new URLSearchParams(searchParams);
@@ -121,7 +125,7 @@ const Home = () => {
             return;
         }
 
-        if (product.stock <= 0) {
+        if (!isProductAvailable(product)) {
             showToast('Sản phẩm đã hết hàng.', 'danger');
             return;
         }
@@ -138,9 +142,9 @@ const Home = () => {
     return (
         <div className="shop-home">
             <section className="shop-hero banner-carousel" aria-label="Banner khuyến mãi">
-                <div className="banner-track" style={{ transform: `translateX(-${topBannerIdx * 100}%)` }}>
+                <div className="banner-track">
                     {displayBanners.map((banner, index) => (
-                        <div className="banner-slide" key={banner.id}>
+                        <div className={`banner-slide ${index === topBannerIdx ? 'is-active' : ''}`} key={banner.id}>
                             <img
                                 src={getImageUrl(banner.imageUrl)}
                                 alt={`PhoneStore banner ${index + 1}`}
@@ -149,39 +153,7 @@ const Home = () => {
                         </div>
                     ))}
                 </div>
-
-                {displayBanners.length > 1 && (
-                    <>
-                        <button
-                            type="button"
-                            className="banner-nav banner-nav--prev"
-                            onClick={() => moveBanner(-1)}
-                            aria-label="Banner trước"
-                        >
-                            <i className="fa fa-chevron-left"></i>
-                        </button>
-                        <button
-                            type="button"
-                            className="banner-nav banner-nav--next"
-                            onClick={() => moveBanner(1)}
-                            aria-label="Banner tiếp theo"
-                        >
-                            <i className="fa fa-chevron-right"></i>
-                        </button>
-
-                        <div className="hero-dots" aria-label="Chuyển banner">
-                            {displayBanners.map((item, index) => (
-                                <button
-                                    type="button"
-                                    key={item.id}
-                                    className={index === topBannerIdx ? 'is-active' : ''}
-                                    onClick={() => setTopBannerIdx(index)}
-                                    aria-label={`Banner ${index + 1}`}
-                                />
-                            ))}
-                        </div>
-                    </>
-                )}
+                <div className={`banner-dark-overlay ${isBannerDark ? 'is-dark' : ''}`} aria-hidden="true" />
             </section>
 
             <div className="shop-main-layout">
@@ -193,29 +165,17 @@ const Home = () => {
                                 <i className="fa fa-border-all"></i>
                                 Tất cả linh kiện
                             </button>
-                            {Array.isArray(categories) && categories.map(category => {
-                                let icon = 'fa-tag';
-                                if (category.id === 1) icon = 'fa-mobile-screen';
-                                if (category.id === 2) icon = 'fa-battery-full';
-                                if (category.id === 3) icon = 'fa-camera';
-                                if (category.id === 4) icon = 'fa-mobile';
-                                if (category.id === 5) icon = 'fa-bolt';
-                                if (category.id === 6) icon = 'fa-volume-high';
-                                if (category.id === 8) icon = 'fa-microchip';
-                                if (category.id === 9) icon = 'fa-shield-halved';
-
-                                return (
-                                    <button
-                                        type="button"
-                                        key={category.id}
-                                        className={activeCatId === category.id ? 'is-active' : ''}
-                                        onClick={() => setCategoryFilter(category.id)}
-                                    >
-                                        <i className={`fa ${icon}`}></i>
-                                        {category.nameVi || category.name}
-                                    </button>
-                                );
-                            })}
+                            {Array.isArray(categories) && categories.map(category => (
+                                <button
+                                    type="button"
+                                    key={category.id}
+                                    className={activeCatId === category.id ? 'is-active' : ''}
+                                    onClick={() => setCategoryFilter(category.id)}
+                                >
+                                    <i className={category.iconClass || category.IconClass || 'fa fa-tag'}></i>
+                                    {category.nameVi || category.name}
+                                </button>
+                            ))}
                         </div>
 
                         <div className="sidebar-support-stack" aria-label="Dịch vụ cửa hàng">
@@ -223,6 +183,28 @@ const Home = () => {
                                 <i className="fa fa-truck-fast"></i>
                                 <h4>Giao hàng hỏa tốc</h4>
                                 <p>Nhận hàng trong 2h tại nội thành, giao trong ngày với đơn ngoại thành.</p>
+                            </div>
+
+                            <div className="sidebar-promo">
+                                <i className="fa fa-gift" style={{ color: '#0ea5e9' }}></i>
+                                <h4>Ưu đãi đặc quyền</h4>
+                                <ul style={{ margin: '12px 0 0', paddingLeft: '18px', fontSize: '13px', color: 'var(--text)', lineHeight: '1.6', textAlign: 'left' }}>
+                                    <li style={{ marginBottom: '10px' }}>
+                                        <strong>Hạng thành viên:</strong>
+                                        <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <div style={{ display: 'flex', gap: '12px' }}>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><i className="fa fa-medal" style={{ color: '#cd7f32', fontSize: '15px', margin: 0 }}></i> Đồng (-2%)</span>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><i className="fa fa-medal" style={{ color: '#94a3b8', fontSize: '15px', margin: 0 }}></i> Bạc (-5%)</span>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '12px' }}>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><i className="fa fa-medal" style={{ color: '#fbbf24', fontSize: '15px', margin: 0 }}></i> Vàng (-7%)</span>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><i className="fa fa-gem" style={{ color: '#22d3ee', fontSize: '15px', margin: 0 }}></i> Kim cương (-10%)</span>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    <li style={{ marginBottom: '8px' }}><strong>Mua sỉ:</strong> Giảm thêm 10% khi mua từ 3 sản phẩm cùng loại</li>
+                                    <li><strong>Siêu ưu đãi:</strong> Giảm ngay 20% cho tổng đơn trên 5.000.000đ</li>
+                                </ul>
                             </div>
 
                             <div className="sidebar-service-card">
@@ -302,18 +284,18 @@ const Home = () => {
                                         <strong>{formatVnd(finalPrice(product))}</strong>
                                         {product.discountPercent > 0 && <del>{formatVnd(product.price)}</del>}
                                     </div>
-                                    <div className={`stock-chip ${product.stock > 0 ? 'in-stock' : 'out-stock'}`}>
+                                    <div className={`stock-chip ${isProductAvailable(product) ? 'in-stock' : 'out-stock'}`}>
                                         <i className="fa fa-box"></i>
-                                        {product.stock > 0 ? `Còn ${product.stock} sản phẩm` : 'Hết hàng'}
+                                        {getAvailabilityText(product) || (isProductAvailable(product) ? 'Còn hàng' : 'Hết hàng')}
                                     </div>
                                     <button
                                         type="button"
                                         className="add-cart-button"
-                                        disabled={product.stock <= 0}
+                                        disabled={!isProductAvailable(product)}
                                         onClick={event => handleAddToCart(product, event)}
                                     >
                                         <i className="fa fa-cart-plus"></i>
-                                        {product.stock > 0 ? 'Thêm vào giỏ' : 'Hết hàng'}
+                                        {isProductAvailable(product) ? 'Thêm vào giỏ' : 'Hết hàng'}
                                     </button>
                                 </div>
                             </Link>

@@ -9,5 +9,6 @@ namespace BaseCore.Services
         Task<ApiResponse<SupplierRequestDto>> CreateAsync(int adminId, CreateSupplierRequestDto request);
         Task<ApiResponse<SupplierRequestReceiptPrefillDto>> ApproveBySupplierAsync(int userId, int id);
         Task<ApiResponse<SupplierRequestDto>> RejectBySupplierAsync(int userId, int id, RejectSupplierRequestDto request);
+        Task<ApiResponse<SupplierRequestDto>> CancelByAdminAsync(int adminId, int id, string? reason);
     }
 }

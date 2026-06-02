@@ -8,6 +8,7 @@ namespace BaseCore.Repository.EFCore
         Task<List<Review>> GetByProductAsync(int productId);
         Task<List<Review>> GetByUserAsync(int userId);
         Task<Review?> GetByUserAndOrderAsync(int userId, int orderId, int productId);
+        Task<Review?> GetByUserAndProductAsync(int userId, int productId);
     }
 
     public class ReviewRepositoryEF : Repository<Review>, IReviewRepositoryEF
@@ -20,6 +21,7 @@ namespace BaseCore.Repository.EFCore
         {
             return await _dbSet
                 .Include(r => r.User)
+                .Include(r => r.Order)
                 .Where(r => r.ProductId == productId)
                 .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync();
@@ -29,6 +31,7 @@ namespace BaseCore.Repository.EFCore
         {
             return await _dbSet
                 .Include(r => r.Product)
+                .Include(r => r.Order)
                 .Where(r => r.UserId == userId)
                 .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync();
@@ -38,6 +41,14 @@ namespace BaseCore.Repository.EFCore
         {
             return await _dbSet
                 .FirstOrDefaultAsync(r => r.UserId == userId && r.OrderId == orderId && r.ProductId == productId);
+        }
+
+        public async Task<Review?> GetByUserAndProductAsync(int userId, int productId)
+        {
+            return await _dbSet
+                .Include(r => r.User)
+                .Include(r => r.Product)
+                .FirstOrDefaultAsync(r => r.UserId == userId && r.ProductId == productId);
         }
     }
 }

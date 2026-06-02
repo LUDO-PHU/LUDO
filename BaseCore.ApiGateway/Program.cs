@@ -3,12 +3,10 @@ using Ocelot.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Nạp cấu hình Ocelot
 builder.Configuration.AddJsonFile("ocelot.json", optional: false, reloadOnChange: true);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Cấu hình CORS để không chặn Request từ React
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -29,7 +27,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// BẮT BUỘC: app.UseCors phải nằm TRƯỚC app.UseOcelot()
 app.UseCors("AllowAll");
 
 await app.UseOcelot();

@@ -17,12 +17,14 @@ namespace BaseCore.DTO.Sales
         public string NameVi { get; set; } = string.Empty;
         public string NameEn { get; set; } = string.Empty;
         public string DescriptionVi { get; set; } = string.Empty;
-        public string DescriptionEn { get; set; } = string.Empty;
         public string Specifications { get; set; } = string.Empty;
         public decimal Price { get; set; }
+        public decimal FinalPrice { get; set; }
         public decimal ImportPrice { get; set; }
         public decimal DiscountPercent { get; set; }
         public int Stock { get; set; }
+        public bool IsAvailable { get; set; }
+        public string AvailabilityText { get; set; } = string.Empty;
         public string ImageUrl { get; set; } = string.Empty;
         public string MainImage { get; set; } = string.Empty;
         public IReadOnlyList<ProductImageDto> Images { get; set; } = Array.Empty<ProductImageDto>();
@@ -39,6 +41,9 @@ namespace BaseCore.DTO.Sales
         public DateTime? UpdatedAt { get; set; }
         public double AverageRating { get; set; }
         public int ReviewCount { get; set; }
+        public bool CanReview { get; set; }
+        public int? ReviewOrderId { get; set; }
+        public string ReviewDisabledReason { get; set; } = string.Empty;
     }
 
     public class CreateProductDto
@@ -46,7 +51,6 @@ namespace BaseCore.DTO.Sales
         public string NameVi { get; set; } = string.Empty;
         public string NameEn { get; set; } = string.Empty;
         public string DescriptionVi { get; set; } = string.Empty;
-        public string DescriptionEn { get; set; } = string.Empty;
         public string Specifications { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public decimal ImportPrice { get; set; }
@@ -66,7 +70,6 @@ namespace BaseCore.DTO.Sales
         public string NameVi { get; set; } = string.Empty;
         public string NameEn { get; set; } = string.Empty;
         public string DescriptionVi { get; set; } = string.Empty;
-        public string DescriptionEn { get; set; } = string.Empty;
         public string Specifications { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public decimal ImportPrice { get; set; }
@@ -103,7 +106,6 @@ namespace BaseCore.DTO.Sales
         public string NameVi { get; set; } = string.Empty;
         public string NameEn { get; set; } = string.Empty;
         public string DescriptionVi { get; set; } = string.Empty;
-        public string DescriptionEn { get; set; } = string.Empty;
         public string Specifications { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public decimal ImportPrice { get; set; }

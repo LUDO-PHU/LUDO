@@ -90,7 +90,7 @@ namespace BaseCore.Repository.EFCore
                 "companyname" or "company" => desc ? query.OrderByDescending(s => s.CompanyName) : query.OrderBy(s => s.CompanyName),
                 "category" => desc ? query.OrderByDescending(s => s.Category!.NameVi) : query.OrderBy(s => s.Category!.NameVi),
                 "createdat" => desc ? query.OrderByDescending(s => s.CreatedAt) : query.OrderBy(s => s.CreatedAt),
-                _ => query.OrderByDescending(s => s.CreatedAt)
+                _ => query.OrderBy(s => s.Id)
             };
 
             var totalCount = await query.CountAsync();

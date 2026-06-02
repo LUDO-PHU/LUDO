@@ -24,6 +24,7 @@ namespace BaseCore.Entities
         public DateTime? DeliveredAt { get; set; }
         public DateTime? CompletedAt { get; set; }
         public DateTime? CancelledAt { get; set; }
+        public DateTime? ReturnedAt { get; set; }
 
         public ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
     }

@@ -16,5 +16,6 @@ namespace BaseCore.Entities
         public decimal TotalImportCost { get; set; }
         public decimal Profit { get; set; }
         public ICollection<OrderStockAllocation> StockAllocations { get; set; } = new List<OrderStockAllocation>();
+        public string? SelectedImageUrl { get; set; }
     }
 }

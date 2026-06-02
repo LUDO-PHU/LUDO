@@ -53,6 +53,16 @@ namespace BaseCore.DTO.Sales
         public DateTime? DeliveredAt { get; set; }
         public DateTime? CancelledAt { get; set; }
         public string CancelReason { get; set; } = string.Empty;
+        public IReadOnlyList<string> AllowedActions { get; set; } = Array.Empty<string>();
+    }
+
+    public class ReceiptItemCreationDto
+    {
+        public int ProductId { get; set; }
+        public int Quantity { get; set; }
+        public decimal UnitImportPrice { get; set; }
+        public string Note { get; set; } = string.Empty;
+        public string ImageUrl { get; set; } = string.Empty;
     }
 
     public class CreateReceiptDto
@@ -64,6 +74,7 @@ namespace BaseCore.DTO.Sales
         public decimal ImportPrice { get; set; }
         public decimal? UnitImportPrice { get; set; }
         public string ImageUrl { get; set; } = string.Empty;
+        public List<ReceiptItemCreationDto>? Items { get; set; }
         public string Content { get; set; } = string.Empty;
         public string Specifications { get; set; } = string.Empty;
         public string Note { get; set; } = string.Empty;

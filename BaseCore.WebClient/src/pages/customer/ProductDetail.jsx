@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { productApi, cartApi, reviewApi, orderApi, unwrapApiData, unwrapPagedData } from '../../services/api';
+import { productApi, cartApi, reviewApi, unwrapApiData, unwrapPagedData } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { formatAppDate } from '../../utils/dateTime';
@@ -8,17 +8,16 @@ import { getImageUrl as resolveImageUrl } from '../../data/fallbackCatalog';
 import { goBackOrHome } from '../../utils/navigation';
 import { getMainImage, getProductImages } from '../../utils/display';
 const PLACEHOLDER = "https://placehold.co/600x600/f1f5f9/94a3b8?text=No+Image";
-const API_BASE_URL = "http://127.0.0.1:5001";
 const getImageUrl = (url) => {
     if (!url) return PLACEHOLDER;
-    return resolveImageUrl(url, API_BASE_URL);
+    return resolveImageUrl(url);
 };
 
 const ProductDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { showToast } = useToast();
-    const { isAuthenticated } = useAuth();
+    const { user, isAuthenticated } = useAuth();
 
     const [product, setProduct] = useState(null);
     const [relatedProducts, setRelatedProducts] = useState([]);
@@ -26,8 +25,6 @@ const ProductDetail = () => {
     const [loading, setLoading] = useState(true);
     const [addingToCart, setAddingToCart] = useState(false);
     const [reviews, setReviews] = useState([]);
-    const [canReview, setCanReview] = useState(false);
-    const [myOrderForReview, setMyOrderForReview] = useState(null);
     const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
     const [submittingReview, setSubmittingReview] = useState(false);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -58,28 +55,6 @@ const ProductDetail = () => {
                     setReviews([]);
                 }
 
-                // Kiểm tra xem user có quyền đánh giá không
-                if (isAuthenticated) {
-                    try {
-                        const orderRes = await orderApi.getMyOrders({ page: 1, pageSize: 50, status: 'Completed' });
-                        const orderItems = unwrapPagedData(orderRes).items;
-                        const completedOrders = (Array.isArray(orderItems) ? orderItems : []).filter(o => o.status === 'Completed');
-                        const orderWithThisProduct = completedOrders.find(o =>
-                            (o.details || o.Details || []).some(d => (d.productId || d.ProductId) == id)
-                        );
-
-                        if (orderWithThisProduct) {
-                            const alreadyReviewed = (Array.isArray(reviewItems) ? reviewItems : []).some(r => r.orderId === orderWithThisProduct.id && r.productId == id);
-                            if (!alreadyReviewed) {
-                                setCanReview(true);
-                                setMyOrderForReview(orderWithThisProduct);
-                            }
-                        }
-                    } catch {
-                        setCanReview(false);
-                        setMyOrderForReview(null);
-                    }
-                }
             } catch (err) {
                 showToast("Sản phẩm không tồn tại hoặc đã bị xóa", "danger");
                 navigate('/customer/home');
@@ -91,17 +66,39 @@ const ProductDetail = () => {
         fetchProductData();
     }, [id, navigate, showToast]);
 
+    useEffect(() => {
+        if (!isAuthenticated || !user?.id) {
+            setNewReview({ rating: 5, comment: '' });
+            return;
+        }
+
+        const ownReview = reviews.find(item => Number(item.userId ?? item.UserId) === Number(user.id));
+        if (!ownReview) {
+            setNewReview({ rating: 5, comment: '' });
+            return;
+        }
+
+        setNewReview({
+            rating: Number(ownReview.rating ?? ownReview.Rating ?? 5),
+            comment: ownReview.comment ?? ownReview.Comment ?? ''
+        });
+    }, [reviews, isAuthenticated, user?.id]);
+
     if (loading || !product) {
         return <div style={{ textAlign: 'center', padding: '100px', fontSize: '20px', fontWeight: 'bold', color: '#64748b' }}>Đang tải dữ liệu sản phẩm...</div>;
     }
 
-    const finalPrice = Math.round(product.price * (1 - (product.discountPercent || 0) / 100));
+    const finalPrice = Number(product.finalPrice ?? product.FinalPrice ?? product.price ?? 0);
+    const isAvailable = Boolean(product.isAvailable ?? product.IsAvailable);
+    const availabilityText = product.availabilityText ?? product.AvailabilityText ?? '';
     const fmt = (n) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n);
     const productImages = getProductImages(product);
     if (productImages.length === 0) productImages.push(getMainImage(product));
     const safeImageIndex = Math.min(selectedImageIndex, Math.max(productImages.length - 1, 0));
     const selectedImage = productImages[safeImageIndex] || product.imageUrl;
     const canSlideImages = productImages.length > 1;
+    const canWriteReview = isAuthenticated && (String(user?.role || '').toLowerCase() === 'user' || Number(user?.userType) === 0);
+    const currentUserReview = reviews.find(item => Number(item.userId ?? item.UserId) === Number(user?.id));
 
     const moveImage = (step) => {
         if (!canSlideImages) return;
@@ -114,22 +111,13 @@ const ProductDetail = () => {
             navigate('/login');
             return;
         }
-        if (product.stock <= 0) return showToast('Sản phẩm đã hết hàng!', 'danger');
-        if (quantity > product.stock) return showToast(`Chỉ còn ${product.stock} sản phẩm trong kho`, 'warning');
+        if (!isAvailable) return showToast('Sản phẩm đã hết hàng!', 'danger');
         if (addingToCart) return;
 
         setAddingToCart(true);
-        if (quantity > product.stock) return showToast(`Chỉ còn ${product.stock} sản phẩm trong kho`, 'warning');
 
         try {
-            const cartRes = await cartApi.getCart();
-            const cartItems = cartRes.data?.data || [];
-            const existing = cartItems.find(item => item.productId === product.id);
-            if (existing) {
-                await cartApi.updateItem(product.id, quantity);
-            } else {
-                await cartApi.addItem(product.id, quantity);
-            }
+            await cartApi.addItem(product.id, quantity, selectedImage);
             window.dispatchEvent(new Event('cart:changed'));
             showToast('Đã thêm vào giỏ hàng!', 'success');
         } catch (err) {
@@ -140,13 +128,12 @@ const ProductDetail = () => {
     };
 
     const handleQuantityChange = (value) => {
-        const maxStock = Math.max(1, Number(product.stock || 1));
         const nextValue = Number.parseInt(value, 10);
         if (Number.isNaN(nextValue)) {
             setQuantity(1);
             return;
         }
-        setQuantity(Math.min(maxStock, Math.max(1, nextValue)));
+        setQuantity(Math.max(1, nextValue));
     };
 
     const handleBuyNow = async () => {
@@ -155,18 +142,22 @@ const ProductDetail = () => {
             navigate('/login');
             return;
         }
-        if (product.stock <= 0) return showToast('Sản phẩm đã hết hàng!', 'danger');
+        if (!isAvailable) return showToast('Sản phẩm đã hết hàng!', 'danger');
 
         try {
-            // Thêm vào cart DB trước, rồi chuyển sang Checkout với chỉ sản phẩm này
-            const cartRes = await cartApi.getCart();
-            const cartItems = cartRes.data?.data || [];
-            const existing = cartItems.find(item => item.productId === product.id);
-            if (existing) {
+            // Lấy danh sách giỏ hàng hiện tại để kiểm tra sản phẩm đã tồn tại hay chưa
+            const res = await cartApi.getCart();
+            const cartItems = res.data?.data || [];
+            const existingItem = cartItems.find(item => item.productId === product.id);
+
+            if (existingItem) {
+                // Nếu sản phẩm đã tồn tại trong giỏ hàng, cập nhật đúng số lượng được chọn
                 await cartApi.updateItem(product.id, quantity);
             } else {
-                await cartApi.addItem(product.id, quantity);
+                // Nếu chưa tồn tại, thêm mới với số lượng được chọn
+                await cartApi.addItem(product.id, quantity, selectedImage);
             }
+
             window.dispatchEvent(new Event('cart:changed'));
             // Lưu productId vào sessionStorage để Checkout lọc đúng sản phẩm
             sessionStorage.setItem('checkout_selected_product_ids', JSON.stringify([product.id]));
@@ -179,20 +170,37 @@ const ProductDetail = () => {
     const handleSubmitReview = async (e) => {
         e.preventDefault();
         if (submittingReview) return;
+        if (!canWriteReview) {
+            showToast('Vui lòng đăng nhập bằng tài khoản khách hàng để đánh giá sản phẩm', 'warning');
+            if (!isAuthenticated) navigate('/login');
+            return;
+        }
         setSubmittingReview(true);
         try {
             await reviewApi.create({
                 productId: parseInt(id),
-                orderId: myOrderForReview.id,
                 rating: newReview.rating,
                 comment: newReview.comment
             });
-            showToast("Gửi đánh giá thành công!", "success");
-            setCanReview(false);
+            showToast(currentUserReview ? 'Cập nhật đánh giá thành công!' : 'Gửi đánh giá thành công!', 'success');
+            setNewReview({ rating: 5, comment: '' });
             // Reload reviews
             const reviewRes = await reviewApi.getByProduct(id);
             const reviewItems = unwrapApiData(reviewRes, []);
-            setReviews(Array.isArray(reviewItems) ? reviewItems : []);
+            const normalizedReviews = Array.isArray(reviewItems) ? reviewItems : [];
+            setReviews(normalizedReviews);
+            const averageRating = normalizedReviews.length
+                ? Math.round((normalizedReviews.reduce((sum, item) => sum + Number(item.rating ?? item.Rating ?? 0), 0) / normalizedReviews.length) * 10) / 10
+                : 0;
+            setProduct(prev => prev ? {
+                ...prev,
+                averageRating,
+                AverageRating: averageRating,
+                reviewCount: normalizedReviews.length,
+                ReviewCount: normalizedReviews.length,
+                canReview: true,
+                CanReview: true
+            } : prev);
         } catch (err) {
             showToast(err.response?.data?.message || "Lỗi khi gửi đánh giá", "danger");
         } finally {
@@ -252,8 +260,8 @@ const ProductDetail = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <h1 style={{ fontSize: '32px', fontWeight: '900', margin: 0, color: '#1e293b' }}>{product.nameVi || product.name}</h1>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px dashed #cbd5e1', paddingBottom: '20px' }}>
-                        <span style={{ background: product.stock > 0 ? '#dcfce7' : '#fee2e2', color: product.stock > 0 ? '#166534' : '#991b1b', padding: '6px 12px', borderRadius: '8px', fontWeight: 'bold', fontSize: '14px' }}>
-                            {product.stock > 0 ? `Còn hàng (${product.stock})` : "Hết hàng"}
+                        <span style={{ background: isAvailable ? '#dcfce7' : '#fee2e2', color: isAvailable ? '#166534' : '#991b1b', padding: '6px 12px', borderRadius: '8px', fontWeight: 'bold', fontSize: '14px' }}>
+                            {availabilityText || (isAvailable ? 'Còn hàng' : 'Hết hàng')}
                         </span>
                         <span style={{ color: '#64748b', fontSize: '14px' }}>Nhà cung cấp: <strong>{product.supplierId || "Hệ thống"}</strong></span>
                     </div>
@@ -280,16 +288,16 @@ const ProductDetail = () => {
                         <p style={{ fontWeight: 'bold', margin: 0, color: '#475569' }}>Số lượng:</p>
                         <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
                             <button onClick={() => setQuantity(Math.max(1, quantity - 1))} style={{ padding: '10px 20px', background: '#f8fafc', border: 'none', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}>-</button>
-                            <input type="number" min="1" max={product.stock || 1} value={quantity} onChange={event => handleQuantityChange(event.target.value)} style={{ width: '78px', textAlign: 'center', border: 'none', borderLeft: '1px solid #cbd5e1', borderRight: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '16px' }} />
-                            <button onClick={() => setQuantity(Math.min(product.stock, quantity + 1))} style={{ padding: '10px 20px', background: '#f8fafc', border: 'none', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}>+</button>
+                            <input type="number" min="1" value={quantity} onChange={event => handleQuantityChange(event.target.value)} style={{ width: '78px', textAlign: 'center', border: 'none', borderLeft: '1px solid #cbd5e1', borderRight: '1px solid #cbd5e1', fontWeight: 'bold', fontSize: '16px' }} />
+                            <button onClick={() => setQuantity(quantity + 1)} style={{ padding: '10px 20px', background: '#f8fafc', border: 'none', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}>+</button>
                         </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-                        <button onClick={handleAddToCart} disabled={product.stock <= 0 || addingToCart} style={{ flex: 1, padding: '18px', background: '#fef08a', color: '#166534', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: '900', cursor: (product.stock > 0 && !addingToCart) ? 'pointer' : 'not-allowed', opacity: addingToCart ? 0.7 : 1 }}>
+                        <button onClick={handleAddToCart} disabled={!isAvailable || addingToCart} style={{ flex: 1, padding: '18px', background: '#fef08a', color: '#166534', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: '900', cursor: (isAvailable && !addingToCart) ? 'pointer' : 'not-allowed', opacity: addingToCart ? 0.7 : 1 }}>
                             {addingToCart ? '⏳ Đang thêm...' : '🛒 THÊM VÀO GIỎ'}
                         </button>
-                        <button onClick={handleBuyNow} disabled={product.stock <= 0} style={{ flex: 1, padding: '18px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: '900', cursor: product.stock > 0 ? 'pointer' : 'not-allowed' }}>
+                        <button onClick={handleBuyNow} disabled={!isAvailable} style={{ flex: 1, padding: '18px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: '900', cursor: isAvailable ? 'pointer' : 'not-allowed' }}>
                             ⚡ MUA NGAY
                         </button>
                     </div>
@@ -322,35 +330,12 @@ const ProductDetail = () => {
                     </div>
 
                     <div>
-                        {canReview && (
-                            <div style={{ marginBottom: '40px', padding: '25px', background: '#fff', border: '2px solid #0ea5e9', borderRadius: '16px' }}>
-                                <h4 style={{ margin: '0 0 15px 0', fontSize: '18px', fontWeight: '800' }}>Viết đánh giá của bạn</h4>
-                                <form onSubmit={handleSubmitReview}>
-                                    <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                        <span style={{ fontWeight: 'bold' }}>Số sao:</span>
-                                        <div style={{ display: 'flex', gap: '5px' }}>
-                                            {[1, 2, 3, 4, 5].map(s => (
-                                                <span key={s} 
-                                                      onClick={() => setNewReview({ ...newReview, rating: s })}
-                                                      style={{ fontSize: '24px', cursor: 'pointer', color: s <= newReview.rating ? '#fbbf24' : '#cbd5e1' }}>
-                                                    ★
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <textarea 
-                                        required
-                                        placeholder="Chia sẻ cảm nhận của bạn về sản phẩm này..."
-                                        style={{ width: '100%', height: '100px', padding: '15px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '15px', resize: 'none' }}
-                                        value={newReview.comment}
-                                        onChange={e => setNewReview({ ...newReview, comment: e.target.value })}
-                                    />
-                                    <button type="submit" disabled={submittingReview} style={{ padding: '12px 30px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-                                        {submittingReview ? "Đang gửi..." : "Gửi đánh giá"}
-                                    </button>
-                                </form>
-                            </div>
-                        )}
+                        <div style={{ marginBottom: '40px', padding: '25px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', color: '#475569' }}>
+                            <h4 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>Đánh giá sản phẩm</h4>
+                            <p style={{ margin: 0, fontSize: '15px', lineHeight: '1.6' }}>
+                                Để đánh giá sản phẩm này, vui lòng truy cập <strong><Link to="/customer/orders" style={{ color: '#0ea5e9', textDecoration: 'none', fontWeight: 'bold' }}>Đơn hàng của tôi</Link></strong>, tìm đơn hàng chứa sản phẩm đã nhận thành công và nhấn <strong>Đánh giá</strong>. Mỗi lượt mua hàng thành công sẽ được viết 1 đánh giá riêng biệt!
+                            </p>
+                        </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                             {reviews.length === 0 ? (
@@ -358,12 +343,29 @@ const ProductDetail = () => {
                             ) : (
                                 reviews.map(r => (
                                     <div key={r.id} style={{ padding: '20px', borderBottom: '1px solid #f1f5f9' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#1e293b' }}>{r.userName}</span>
-                                            <span style={{ color: '#94a3b8', fontSize: '13px' }}>{formatAppDate(r.createdAt)}</span>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#1e293b' }}>{r.userName ?? r.UserName}</span>
+                                                {(r.orderCode || r.OrderCode) && (
+                                                    <span style={{ 
+                                                        background: '#dcfce7', 
+                                                        color: '#15803d', 
+                                                        padding: '3px 10px', 
+                                                        borderRadius: 6, 
+                                                        fontSize: 12, 
+                                                        fontWeight: 800,
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: 4
+                                                    }}>
+                                                        ✓ Đã mua hàng
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span style={{ color: '#94a3b8', fontSize: '13px' }}>{formatAppDate(r.createdAt ?? r.CreatedAt)}</span>
                                         </div>
-                                        <div style={{ color: '#fbbf24', marginBottom: '8px' }}>{"★".repeat(r.rating) + "☆".repeat(5 - r.rating)}</div>
-                                        <p style={{ margin: 0, color: '#334155', lineHeight: '1.6' }}>{r.comment}</p>
+                                        <div style={{ color: '#fbbf24', marginBottom: '8px' }}>{"★".repeat(r.rating ?? r.Rating ?? 5) + "☆".repeat(5 - (r.rating ?? r.Rating ?? 5))}</div>
+                                        <p style={{ margin: 0, color: '#334155', lineHeight: '1.6' }}>{r.comment ?? r.Comment}</p>
                                     </div>
                                 ))
                             )}
@@ -382,7 +384,7 @@ const ProductDetail = () => {
                                 <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '15px', cursor: 'pointer', textAlign: 'center', transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
                                     <img src={getImageUrl(getMainImage(rp))} alt={rp.nameVi || rp.name} style={{ width: '100%', height: '180px', objectFit: 'contain', marginBottom: '15px', background: '#fff', borderRadius: '8px', padding: '5px' }} onError={e => e.target.src = PLACEHOLDER} />
                                     <h4 style={{ fontSize: '15px', margin: '0 0 10px 0', color: '#1e293b', lineHeight: 1.45 }}>{rp.nameVi || rp.name}</h4>
-                                    <div style={{ color: '#0ea5e9', fontWeight: '900', fontSize: '18px' }}>{fmt(rp.price * (1 - (rp.discountPercent || 0) / 100))}</div>
+                                    <div style={{ color: '#0ea5e9', fontWeight: '900', fontSize: '18px' }}>{fmt(Number(rp.finalPrice ?? rp.FinalPrice ?? rp.price ?? 0))}</div>
                                 </div>
                             </Link>
                         ))}

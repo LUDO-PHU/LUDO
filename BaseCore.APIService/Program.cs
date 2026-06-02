@@ -6,7 +6,7 @@ using BaseCore.APIService.Json;
 using BaseCore.Repository;
 using BaseCore.Repository.EFCore;
 using BaseCore.Services;
-using BaseCore.APIService.Services; // QUAN TRỌNG: Thêm namespace này để nhận diện AutoStatusWorker
+using BaseCore.APIService.Services;          
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,19 +15,16 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
 
-// --- 1. Cấu hình Controller và JSON ---
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
         options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
-        // SỬA LỖI 500: Ngắt vòng lặp vô hạn JSON khi có quan hệ cha-con
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
     });
 
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 2. Cấu hình Swagger ---
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
@@ -57,7 +54,6 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// --- 3. Cấu hình CORS (Cho phép React truy cập) ---
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -66,13 +62,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-// --- 4. Cấu hình Database (SQL Server) ---
 builder.Services.AddDbContext<BaseCoreSalesContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("ConnectedDb"));
 });
 
-// --- 5. Đăng ký Repositories ---
 builder.Services.AddScoped<IProductRepositoryEF, ProductRepositoryEF>();
 builder.Services.AddScoped<ICategoryRepositoryEF, CategoryRepositoryEF>();
 builder.Services.AddScoped<IOrderRepositoryEF, OrderRepositoryEF>();
@@ -84,7 +78,6 @@ builder.Services.AddScoped<ICartRepository, CartRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<IReviewRepositoryEF, ReviewRepositoryEF>();
 
-// --- 6. Đăng ký Services ---
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
@@ -99,11 +92,8 @@ builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<ISupplierRequestService, SupplierRequestService>();
 builder.Services.AddScoped<IRevenueService, RevenueService>();
 
-// --- 7. ĐĂNG KÝ ROBOT CHẠY NGẦM (AutoStatusWorker) ---
-// Worker chỉ tự động cập nhật biên lai nhập kho. Đơn hàng phải do Admin/User xác nhận theo luồng nghiệp vụ.
 builder.Services.AddHostedService<AutoStatusWorker>();
 
-// --- 8. Cấu hình JWT Authentication ---
 var key = Encoding.ASCII.GetBytes(builder.Configuration["Jwt:SecretKey"] ?? "YourSecretKeyForAuthenticationShouldBeLongEnough");
 builder.Services.AddAuthentication(x =>
 {
@@ -125,18 +115,18 @@ builder.Services.AddAuthentication(x =>
 
 var app = builder.Build();
 
-// --- 9. Tự động khởi tạo Database (Auto Migrate) ---
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<BaseCoreSalesContext>();
     await EnsureOrderCustomerFieldsAsync(db);
     await EnsureSupplierAdminSchemaAsync(db);
     await EnsureProductImagesSchemaAsync(db);
-    // Lưu ý: Nếu dùng Migration, bạn có thể thay EnsureCreated() bằng db.Database.Migrate()
-    // db.Database.EnsureCreated();
+    await EnsureReviewsSchemaAsync(db);
+    await EnsureCartAndDetailSelectedImageSchemaAsync(db);
+    await EnsureReturnedAtColumnAsync(db);
+    await EnsureReturnRequestsSchemaAsync(db);
 }
 
-// --- 10. Cấu hình HTTP Request Pipeline ---
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
@@ -280,6 +270,54 @@ BEGIN
     UPDATE RankedImages
     SET [IsPrimary] = 1
     WHERE [RowNo] = 1 AND [HasPrimary] = 0;
+END
+");
+}
+
+static async Task EnsureReviewsSchemaAsync(BaseCoreSalesContext db)
+{
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[Reviews]', N'U') IS NOT NULL
+   AND COL_LENGTH(N'[dbo].[Reviews]', N'OrderId') IS NOT NULL
+BEGIN
+    DECLARE @OrderIdNullable bit;
+    SELECT @OrderIdNullable = [is_nullable]
+    FROM sys.columns
+    WHERE [object_id] = OBJECT_ID(N'[dbo].[Reviews]') AND [name] = N'OrderId';
+
+    IF @OrderIdNullable = 0
+    BEGIN
+        DECLARE @ReviewOrderFk sysname;
+        SELECT @ReviewOrderFk = fk.[name]
+        FROM sys.foreign_keys fk
+        INNER JOIN sys.foreign_key_columns fkc ON fk.[object_id] = fkc.[constraint_object_id]
+        INNER JOIN sys.columns pc ON fkc.[parent_object_id] = pc.[object_id] AND fkc.[parent_column_id] = pc.[column_id]
+        WHERE fk.[parent_object_id] = OBJECT_ID(N'[dbo].[Reviews]')
+          AND pc.[name] = N'OrderId';
+
+        IF @ReviewOrderFk IS NOT NULL
+        BEGIN
+            DECLARE @DropReviewOrderFkSql nvarchar(max);
+            SET @DropReviewOrderFkSql = N'ALTER TABLE [dbo].[Reviews] DROP CONSTRAINT ' + QUOTENAME(@ReviewOrderFk);
+            EXEC sp_executesql @DropReviewOrderFkSql;
+        END
+
+        ALTER TABLE [dbo].[Reviews] ALTER COLUMN [OrderId] int NULL;
+    END
+
+    IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NOT NULL
+       AND NOT EXISTS (
+            SELECT 1
+            FROM sys.foreign_key_columns fkc
+            INNER JOIN sys.columns pc ON fkc.[parent_object_id] = pc.[object_id] AND fkc.[parent_column_id] = pc.[column_id]
+            WHERE fkc.[parent_object_id] = OBJECT_ID(N'[dbo].[Reviews]')
+              AND pc.[name] = N'OrderId'
+       )
+    BEGIN
+        ALTER TABLE [dbo].[Reviews] WITH CHECK
+        ADD CONSTRAINT [FK_Reviews_Orders_OrderId]
+        FOREIGN KEY([OrderId]) REFERENCES [dbo].[Orders]([Id]);
+    END
 END
 ");
 }
@@ -581,7 +619,6 @@ BEGIN
       );
     END
 END
-
 IF OBJECT_ID(N'[dbo].[StockBatches]', N'U') IS NOT NULL
    AND OBJECT_ID(N'[dbo].[Products]', N'U') IS NOT NULL
 BEGIN
@@ -598,6 +635,62 @@ BEGIN
       AND COALESCE(p.SupplierId, s.Id) IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM [dbo].[StockBatches] b WHERE b.ProductId = p.Id);
 END
+END
+");
+}
+
+static async Task EnsureCartAndDetailSelectedImageSchemaAsync(BaseCoreSalesContext db)
+{
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[CartItems]', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'[dbo].[CartItems]', N'SelectedImageUrl') IS NULL
+        ALTER TABLE [dbo].[CartItems] ADD [SelectedImageUrl] nvarchar(max) NULL;
+END
+
+IF OBJECT_ID(N'[dbo].[OrderDetails]', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'[dbo].[OrderDetails]', N'SelectedImageUrl') IS NULL
+        ALTER TABLE [dbo].[OrderDetails] ADD [SelectedImageUrl] nvarchar(max) NULL;
+END");
+}
+
+static async Task EnsureReturnedAtColumnAsync(BaseCoreSalesContext db)
+{
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'[dbo].[Orders]', N'ReturnedAt') IS NULL
+        ALTER TABLE [dbo].[Orders] ADD [ReturnedAt] datetime2 NULL;
+END");
+}
+
+static async Task EnsureReturnRequestsSchemaAsync(BaseCoreSalesContext db)
+{
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'[dbo].[ReturnRequests]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[ReturnRequests](
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_ReturnRequests] PRIMARY KEY,
+        [OrderId] int NOT NULL,
+        [UserId] int NOT NULL,
+        [Type] int NOT NULL CONSTRAINT [DF_ReturnRequests_Type] DEFAULT 0,
+        [Reason] nvarchar(max) NOT NULL CONSTRAINT [DF_ReturnRequests_Reason] DEFAULT N'',
+        [ImageUrl] nvarchar(max) NOT NULL CONSTRAINT [DF_ReturnRequests_ImageUrl] DEFAULT N'',
+        [Status] int NOT NULL CONSTRAINT [DF_ReturnRequests_Status] DEFAULT 0,
+        [AdminComment] nvarchar(max) NOT NULL CONSTRAINT [DF_ReturnRequests_AdminComment] DEFAULT N'',
+        [CreatedAt] datetime2 NOT NULL CONSTRAINT [DF_ReturnRequests_CreatedAt] DEFAULT SYSUTCDATETIME(),
+        [ProcessedAt] datetime2 NULL
+    );
+END
+
+IF OBJECT_ID(N'[dbo].[ReturnRequests]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ReturnRequests_OrderId' AND object_id = OBJECT_ID(N'[dbo].[ReturnRequests]'))
+        EXEC(N'CREATE INDEX [IX_ReturnRequests_OrderId] ON [dbo].[ReturnRequests]([OrderId])');
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ReturnRequests_UserId' AND object_id = OBJECT_ID(N'[dbo].[ReturnRequests]'))
+        EXEC(N'CREATE INDEX [IX_ReturnRequests_UserId] ON [dbo].[ReturnRequests]([UserId])');
 END
 ");
 }

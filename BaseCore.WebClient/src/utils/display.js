@@ -10,7 +10,7 @@ export const formatVnd = (value) =>
     new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value || 0);
 
 export const finalPrice = (product) =>
-    Math.round((Number(product?.price || 0)) * (1 - Number(product?.discountPercent || 0) / 100));
+    Number(readValue(product, 'finalPrice', 'FinalPrice', 'price', 'Price') ?? 0);
 
 export const getProductImages = (product) => {
     const rawImages = readValue(product, 'images', 'Images', 'productImages', 'ProductImages') || [];
@@ -52,6 +52,7 @@ export const ORDER_STATUS = {
     Shipping: { label: 'Đang giao', badge: 'badge-shipping' },
     Completed: { label: 'Giao thành công', badge: 'badge-completed' },
     Cancelled: { label: 'Đã hủy', badge: 'badge-cancelled' },
+    ReturnedToStock: { label: 'Đã hoàn về kho', badge: 'badge-returned' },
 };
 
 export const RECEIPT_STATUS = {

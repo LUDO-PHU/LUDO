@@ -16,7 +16,6 @@ namespace BaseCore.Common
     {
         public static async void DeleteAllCacheAsyn(this IConnectionMultiplexer muxer, IConfiguration configuration, string pattern)
         {
-            //TODO: change this If use cluster redis
             var defaultDatabase = !string.IsNullOrEmpty(configuration["Redis:DefaultDatabase"])
                 ? int.Parse(configuration["Redis:DefaultDatabase"]) : 10;
             var server = muxer.GetServer(configuration["Redis:ConnectionString"]);
@@ -27,17 +26,6 @@ namespace BaseCore.Common
             }
         }
     
-        /// <summary>  
-        /// Gets or set cache asynchronous.  
-        /// </summary>  
-        /// <typeparam name="TResult">The type of the result.</typeparam>  
-        /// <param name="cache">The distributed cache interface.</param>  
-        /// <param name="key">The key for storing cache.</param>  
-        /// <param name="storingItem">The storing item.</param>  
-        /// <param name="configuration">configuration The cache rule (null: meaning no expire cache, otherwise have expire time cache)</param>  
-        /// <returns>  
-        /// The result for stored item.  
-        /// </returns>  
         public static async Task<TResult> GetOrSetCacheAsync<TResult>(this IDistributedCache cache, string key,
             Func<TResult> storingItem, IConfiguration configuration = null)
             where TResult : class
@@ -64,13 +52,6 @@ namespace BaseCore.Common
             return cachedValue;
         }
 
-        /// <summary>  
-        /// Gets the cache value asynchronous.  
-        /// </summary>  
-        /// <typeparam name="TResult">The type of the result.</typeparam>  
-        /// <param name="cache">The cache.</param>  
-        /// <param name="key">The key for caching.</param>  
-        /// <returns>Value of cached item.</returns>  
         public static TResult GetCacheValue<TResult>(this IDistributedCache cache, string key)
             where TResult : class
         {
@@ -90,13 +71,6 @@ namespace BaseCore.Common
             }
         }
 
-        /// <summary>  
-        /// Gets the cache value asynchronous.  
-        /// </summary>  
-        /// <typeparam name="TResult">The type of the result.</typeparam>  
-        /// <param name="cache">The cache.</param>  
-        /// <param name="key">The key for caching.</param>  
-        /// <returns>Value of cached item.</returns>  
         public static async Task<TResult> GetCacheValueAsync<TResult>(this IDistributedCache cache, string key)
             where TResult : class
         {
@@ -109,18 +83,6 @@ namespace BaseCore.Common
             return JsonConvert.DeserializeObject<TResult>(cachedValue);
         }
 
-        /// <summary>  
-        /// Stores the value in cache.  
-        /// </summary>  
-        /// <typeparam name="TResult">The type of the result.</typeparam>  
-        /// <param name="cache">The cache.</param>  
-        /// <param name="key">The key for caching.</param>  
-        /// <param name="storingItem">The storing item.</param>  
-        /// <param name="configuration">The cache rule.</param>  
-        /// <returns>  
-        /// Value of caching item.  
-        /// </returns>  
-        /// <exception cref="ArgumentNullException">key</exception>  
         public static async Task<TResult> StoreValueAsync<TResult>(this IDistributedCache cache, string key,
             Func<TResult> storingItem, IConfiguration configuration = null)
             where TResult : class
@@ -131,7 +93,7 @@ namespace BaseCore.Common
                 var redisKey = key.ToLower(CultureInfo.InvariantCulture);
                 var value = JsonConvert.SerializeObject(storingValue);
 
-                if (!value.Equals("[]")) //value is empty no cache
+                if (!value.Equals("[]"))     
                 {
                     if (configuration != null)
                     {
@@ -151,18 +113,6 @@ namespace BaseCore.Common
             return storingValue;
         }
 
-        /// <summary>  
-        /// Stores the value in cache.  
-        /// </summary>  
-        /// <typeparam name="TResult">The type of the result.</typeparam>  
-        /// <param name="cache">The cache.</param>  
-        /// <param name="key">The key for caching.</param>  
-        /// <param name="storingItem">The storing item.</param>  
-        /// <param name="configuration">The cache rule.</param>  
-        /// <returns>  
-        /// Value of caching item.  
-        /// </returns>  
-        /// <exception cref="ArgumentNullException">key</exception>  
         public static TResult StoreValue<TResult>(this IDistributedCache cache, string key,
             Func<TResult> storingItem, IConfiguration configuration = null)
             where TResult : class
@@ -173,7 +123,7 @@ namespace BaseCore.Common
                 var redisKey = key.ToLower(CultureInfo.InvariantCulture);
                 var value = JsonConvert.SerializeObject(storingValue);
 
-                if (!value.Equals("[]")) //value is empty no cache
+                if (!value.Equals("[]"))     
                 {
                     if (configuration != null)
                     {

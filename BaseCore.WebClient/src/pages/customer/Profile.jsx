@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { goBackOrHome } from "../../utils/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { useToast } from "../../contexts/ToastContext";
 import { userApi } from "../../services/api";
 
 const Profile = () => {
+    const navigate = useNavigate();
     const { user, updateUser } = useAuth();
     const { showToast } = useToast();
 
@@ -19,7 +22,7 @@ const Profile = () => {
         if (!tier) return '#d97706';
         const t = tier.toLowerCase();
         if (t.includes('vàng') || t.includes('gold')) return '#fde047';
-        if (t.includes('bạc') || t.includes('silver')) return '#cbd5e1';
+        if (t.includes('bạc') || t.includes('silver')) return '#64748b';
         if (t.includes('đồng') || t.includes('bronze')) return '#d97706';
         return '#fde047';
     };
@@ -76,6 +79,12 @@ const Profile = () => {
     return (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: '40px' }}>
             <div style={{ background: '#fff', width: '100%', maxWidth: '600px', borderRadius: '16px', padding: '40px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+
+                <div style={{ marginBottom: '20px' }}>
+                    <button type="button" onClick={() => goBackOrHome(navigate)} style={{ background: 'transparent', border: 'none', color: '#0ea5e9', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '15px', padding: 0 }}>
+                        ← Quay lại
+                    </button>
+                </div>
 
                 {/* TIÊU ĐỀ & AVATAR */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px', borderBottom: '2px solid #f1f5f9', paddingBottom: '30px', marginBottom: '30px' }}>

@@ -4,6 +4,7 @@ using BaseCore.Entities;
 using BaseCore.Repository;
 using BaseCore.Repository.EFCore;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace BaseCore.Services
 {
@@ -26,7 +27,7 @@ namespace BaseCore.Services
             _productRepository = productRepository;
         }
 
-        public async Task<ApiResponse<PagedResult<ReceiptDto>>> SearchAsync(ReceiptSearchRequestDto request)
+        public async Task<ApiResponse<PagedResult<ReceiptDto>>> SearchAsync(ReceiptSearchRequestDto request, string? viewerRole = null)
         {
             request ??= new ReceiptSearchRequestDto();
             NormalizePaging(request);
@@ -57,20 +58,20 @@ namespace BaseCore.Services
 
             return ApiResponse<PagedResult<ReceiptDto>>.Ok(new PagedResult<ReceiptDto>
             {
-                Items = receipts.Select(MapReceipt).ToList(),
+                Items = receipts.Select(receipt => MapReceipt(receipt, viewerRole)).ToList(),
                 TotalCount = totalCount,
                 Page = request.Page,
                 PageSize = request.PageSize
             });
         }
 
-        public async Task<ApiResponse<IReadOnlyList<ReceiptDto>>> GetAllAsync()
+        public async Task<ApiResponse<IReadOnlyList<ReceiptDto>>> GetAllAsync(string? viewerRole = null)
         {
             var (receipts, _) = await _receiptRepository.SearchAsync(null, null, null, null, null, null, null, null, null, null, 1, int.MaxValue);
-            return ApiResponse<IReadOnlyList<ReceiptDto>>.Ok(receipts.Select(MapReceipt).ToList());
+            return ApiResponse<IReadOnlyList<ReceiptDto>>.Ok(receipts.Select(receipt => MapReceipt(receipt, viewerRole)).ToList());
         }
 
-        public async Task<ApiResponse<ReceiptDto>> GetByIdAsync(int id)
+        public async Task<ApiResponse<ReceiptDto>> GetByIdAsync(int id, string? viewerRole = null)
         {
             if (id <= 0)
             {
@@ -80,7 +81,7 @@ namespace BaseCore.Services
             var receipt = await _receiptRepository.GetByIdWithDetailsAsync(id);
             return receipt == null
                 ? ApiResponse<ReceiptDto>.Fail("Không tìm thấy biên lai")
-                : ApiResponse<ReceiptDto>.Ok(MapReceipt(receipt));
+                : ApiResponse<ReceiptDto>.Ok(MapReceipt(receipt, viewerRole));
         }
 
         public async Task<ApiResponse<ReceiptDto>> CreateAsync(CreateReceiptDto request)
@@ -174,39 +175,94 @@ namespace BaseCore.Services
                     return ApiResponse<ReceiptDto>.Fail("Chỉ có thể duyệt biên lai đang chờ xử lý");
                 }
 
-                var validationError = ValidateReceiptOwnership(receipt.Supplier, receipt.Product);
-                if (!string.IsNullOrWhiteSpace(validationError))
-                {
-                    return ApiResponse<ReceiptDto>.Fail(validationError);
-                }
-
                 var now = DateTime.UtcNow;
                 receipt.AdminId = adminId ?? receipt.AdminId;
                 receipt.Status = ReceiptStatus.ApprovedByAdmin;
                 receipt.ConfirmedAt ??= now;
                 receipt.DeliveredAt ??= now;
 
-                var stockBeforeImport = receipt.Product.Stock;
-                var currentImportPrice = receipt.Product.ImportPrice;
-                receipt.Product.ImportPrice = CalculateNextProductImportPrice(
-                    stockBeforeImport,
-                    currentImportPrice,
-                    receipt.Quantity,
-                    receipt.ImportPrice);
-                receipt.Product.Stock += receipt.Quantity;
-                receipt.Product.Status = NormalizeProductStatus(receipt.Product.Stock, receipt.Product.Status);
-                receipt.Product.UpdatedAt = now;
-
-                _db.StockBatches.Add(new StockBatch
+                // Try to deserialize multi-item receipt stored in Specifications
+                List<ReceiptItemCreationDto>? multiItems = null;
+                if (!string.IsNullOrWhiteSpace(receipt.Specifications) && receipt.Specifications.TrimStart().StartsWith("["))
                 {
-                    ProductId = receipt.ProductId,
-                    SupplierId = receipt.SupplierId,
-                    ReceiptId = receipt.Id,
-                    QuantityImported = receipt.Quantity,
-                    QuantityRemaining = receipt.Quantity,
-                    UnitImportPrice = receipt.ImportPrice,
-                    CreatedAt = now
-                });
+                    try
+                    {
+                        var raw = JsonSerializer.Deserialize<List<JsonElement>>(receipt.Specifications);
+                        if (raw != null && raw.Count > 0)
+                        {
+                            multiItems = raw.Select(el => new ReceiptItemCreationDto
+                            {
+                                ProductId = el.TryGetProperty("productId", out var pid) ? pid.GetInt32() : 0,
+                                Quantity = el.TryGetProperty("quantity", out var qty) ? qty.GetInt32() : 0,
+                                UnitImportPrice = el.TryGetProperty("unitImportPrice", out var price) ? price.GetDecimal() : 0,
+                                Note = el.TryGetProperty("note", out var note) ? note.GetString() ?? string.Empty : string.Empty,
+                                ImageUrl = el.TryGetProperty("imageUrl", out var img) ? img.GetString() ?? string.Empty : string.Empty
+                            }).Where(i => i.ProductId > 0).ToList();
+                        }
+                    }
+                    catch { /* Not a valid JSON array, fall through to legacy path */ }
+                }
+
+                if (multiItems != null && multiItems.Count > 0)
+                {
+                    // Multi-product approval: update stock for each item separately
+                    var productIds = multiItems.Select(i => i.ProductId).Distinct().ToList();
+                    var products = await _db.Products
+                        .Where(p => productIds.Contains(p.Id))
+                        .ToListAsync();
+
+                    foreach (var item in multiItems)
+                    {
+                        var product = products.FirstOrDefault(p => p.Id == item.ProductId);
+                        if (product == null) continue;
+
+                        var stockBefore = product.Stock;
+                        product.ImportPrice = CalculateNextProductImportPrice(
+                            stockBefore, product.ImportPrice, item.Quantity, item.UnitImportPrice);
+                        product.Stock += item.Quantity;
+                        product.Status = NormalizeProductStatus(product.Stock, product.Status);
+                        product.UpdatedAt = now;
+
+                        _db.StockBatches.Add(new StockBatch
+                        {
+                            ProductId = item.ProductId,
+                            SupplierId = receipt.SupplierId,
+                            ReceiptId = receipt.Id,
+                            QuantityImported = item.Quantity,
+                            QuantityRemaining = item.Quantity,
+                            UnitImportPrice = item.UnitImportPrice,
+                            CreatedAt = now
+                        });
+                    }
+                }
+                else
+                {
+                    // Legacy single-product approval
+                    var validationError = ValidateReceiptOwnership(receipt.Supplier, receipt.Product);
+                    if (!string.IsNullOrWhiteSpace(validationError))
+                    {
+                        return ApiResponse<ReceiptDto>.Fail(validationError);
+                    }
+
+                    var stockBeforeImport = receipt.Product.Stock;
+                    var currentImportPrice = receipt.Product.ImportPrice;
+                    receipt.Product.ImportPrice = CalculateNextProductImportPrice(
+                        stockBeforeImport, currentImportPrice, receipt.Quantity, receipt.ImportPrice);
+                    receipt.Product.Stock += receipt.Quantity;
+                    receipt.Product.Status = NormalizeProductStatus(receipt.Product.Stock, receipt.Product.Status);
+                    receipt.Product.UpdatedAt = now;
+
+                    _db.StockBatches.Add(new StockBatch
+                    {
+                        ProductId = receipt.ProductId,
+                        SupplierId = receipt.SupplierId,
+                        ReceiptId = receipt.Id,
+                        QuantityImported = receipt.Quantity,
+                        QuantityRemaining = receipt.Quantity,
+                        UnitImportPrice = receipt.ImportPrice,
+                        CreatedAt = now
+                    });
+                }
 
                 if (receipt.Request != null)
                 {
@@ -244,7 +300,7 @@ namespace BaseCore.Services
                 await transaction.CommitAsync();
 
                 var updated = await _receiptRepository.GetByIdWithDetailsAsync(id) ?? receipt;
-                return ApiResponse<ReceiptDto>.Ok(MapReceipt(updated), "Đã duyệt biên lai");
+                return ApiResponse<ReceiptDto>.Ok(MapReceipt(updated, "Admin"), "Đã duyệt biên lai");
             }
             catch (Exception ex)
             {
@@ -301,10 +357,10 @@ namespace BaseCore.Services
             await _db.SaveChangesAsync();
 
             var updated = await _receiptRepository.GetByIdWithDetailsAsync(id) ?? receipt;
-            return ApiResponse<ReceiptDto>.Ok(MapReceipt(updated), "Đã từ chối biên lai");
+            return ApiResponse<ReceiptDto>.Ok(MapReceipt(updated, "Admin"), "Đã từ chối biên lai");
         }
 
-        public static ReceiptDto MapReceipt(Receipt receipt)
+        public static ReceiptDto MapReceipt(Receipt receipt, string? viewerRole = null)
         {
             var productImages = receipt.Product == null
                 ? Array.Empty<ProductImageDto>()
@@ -318,6 +374,83 @@ namespace BaseCore.Services
             var supplierName = receipt.Supplier?.CompanyName ?? string.Empty;
             var productName = receipt.Product?.NameVi ?? string.Empty;
             var categoryName = receipt.Product?.Category?.NameVi ?? receipt.Supplier?.Category?.NameVi ?? string.Empty;
+
+            // Try to deserialize multi-item receipt stored as JSON in Specifications
+            IReadOnlyList<ReceiptProductItemDto> items;
+            bool isMultiItem = false;
+            if (!string.IsNullOrWhiteSpace(receipt.Specifications) && receipt.Specifications.TrimStart().StartsWith("["))
+            {
+                try
+                {
+                    var rawItems = JsonSerializer.Deserialize<List<JsonElement>>(receipt.Specifications);
+                    if (rawItems != null && rawItems.Count > 0)
+                    {
+                        items = rawItems.Select(el =>
+                        {
+                            var itemImage = el.TryGetProperty("imageUrl", out var imgProp) ? imgProp.GetString() ?? string.Empty : string.Empty;
+                            if (string.IsNullOrWhiteSpace(itemImage)) itemImage = receiptImage;
+                            return new ReceiptProductItemDto
+                            {
+                                ProductId = el.TryGetProperty("productId", out var pid) ? pid.GetInt32() : receipt.ProductId,
+                                ProductName = productName,
+                                CategoryId = receipt.Product?.CategoryId ?? 0,
+                                CategoryName = categoryName,
+                                SupplierId = receipt.SupplierId,
+                                SupplierName = supplierName,
+                                MainImage = itemImage,
+                                ImageUrl = itemImage,
+                                Images = Array.Empty<ProductImageDto>(),
+                                Quantity = el.TryGetProperty("quantity", out var qty) ? qty.GetInt32() : receipt.Quantity,
+                                UnitImportPrice = el.TryGetProperty("unitImportPrice", out var price) ? price.GetDecimal() : receipt.ImportPrice,
+                                TotalAmount = el.TryGetProperty("totalAmount", out var total) ? total.GetDecimal() : receipt.TotalImportAmount,
+                                Note = el.TryGetProperty("note", out var note) ? note.GetString() ?? string.Empty : receipt.Note
+                            };
+                        }).ToList();
+                        isMultiItem = true;
+                    }
+                    else
+                    {
+                        items = Array.Empty<ReceiptProductItemDto>();
+                    }
+                }
+                catch
+                {
+                    items = Array.Empty<ReceiptProductItemDto>();
+                }
+            }
+            else
+            {
+                items = Array.Empty<ReceiptProductItemDto>();
+            }
+
+            // Fallback to legacy single-item
+            if (!isMultiItem)
+            {
+                items = new[]
+                {
+                    new ReceiptProductItemDto
+                    {
+                        ProductId = receipt.ProductId,
+                        ProductName = productName,
+                        CategoryId = receipt.Product?.CategoryId ?? 0,
+                        CategoryName = categoryName,
+                        SupplierId = receipt.SupplierId,
+                        SupplierName = supplierName,
+                        MainImage = itemMainImage,
+                        ImageUrl = receiptImage,
+                        Images = receiptProductImages,
+                        Quantity = receipt.Quantity,
+                        UnitImportPrice = receipt.ImportPrice,
+                        TotalAmount = receipt.TotalImportAmount,
+                        Note = receipt.Note
+                    }
+                };
+            }
+
+            // Build display Specifications: hide raw JSON, show note/content instead for multi-item receipts
+            var specsDisplay = isMultiItem
+                ? receipt.Note
+                : (string.IsNullOrWhiteSpace(receipt.Specifications) ? receipt.Content : receipt.Specifications);
 
             return new ReceiptDto
             {
@@ -342,27 +475,9 @@ namespace BaseCore.Services
                 ImageUrl = receiptImage,
                 ProductMainImage = !string.IsNullOrWhiteSpace(productMainImage) ? productMainImage : receiptImage,
                 ProductImages = receiptProductImages,
-                Items = new[]
-                {
-                    new ReceiptProductItemDto
-                    {
-                        ProductId = receipt.ProductId,
-                        ProductName = productName,
-                        CategoryId = receipt.Product?.CategoryId ?? 0,
-                        CategoryName = categoryName,
-                        SupplierId = receipt.SupplierId,
-                        SupplierName = supplierName,
-                        MainImage = itemMainImage,
-                        ImageUrl = receiptImage,
-                        Images = receiptProductImages,
-                        Quantity = receipt.Quantity,
-                        UnitImportPrice = receipt.ImportPrice,
-                        TotalAmount = receipt.TotalImportAmount,
-                        Note = receipt.Note
-                    }
-                },
+                Items = items,
                 Content = receipt.Content,
-                Specifications = string.IsNullOrWhiteSpace(receipt.Specifications) ? receipt.Content : receipt.Specifications,
+                Specifications = specsDisplay,
                 Note = receipt.Note,
                 FromAddress = receipt.FromAddress,
                 ToAddress = receipt.ToAddress,
@@ -372,7 +487,8 @@ namespace BaseCore.Services
                 ShippingAt = receipt.ShippingAt,
                 DeliveredAt = receipt.DeliveredAt,
                 CancelledAt = receipt.CancelledAt,
-                CancelReason = receipt.CancelReason
+                CancelReason = receipt.CancelReason,
+                AllowedActions = GetAllowedReceiptActions(receipt.Status, viewerRole)
             };
         }
 
@@ -417,31 +533,72 @@ namespace BaseCore.Services
                 return ApiResponse<ReceiptDto>.Fail("Dữ liệu biên lai không hợp lệ", errors.ToArray());
             }
 
-            var selectedProduct = await _db.Products
+            // --- Determine effective items list ---
+            var hasMultiItems = request.Items != null && request.Items.Count > 0;
+
+            int firstProductId;
+            decimal totalImportAmount;
+            decimal unitImportPrice;
+            string serializedItems;
+
+            if (hasMultiItems)
+            {
+                // Multi-product path: compute totals from item list
+                var itemDtos = request.Items!;
+                totalImportAmount = itemDtos.Sum(i => i.Quantity * i.UnitImportPrice);
+                unitImportPrice = itemDtos.Count == 1 ? itemDtos[0].UnitImportPrice : totalImportAmount;
+                firstProductId = itemDtos[0].ProductId;
+
+                // Serialize items to JSON for storage
+                var itemsToSerialize = itemDtos.Select(i => new
+                {
+                    productId = i.ProductId,
+                    quantity = i.Quantity,
+                    unitImportPrice = i.UnitImportPrice,
+                    totalAmount = i.Quantity * i.UnitImportPrice,
+                    note = i.Note ?? string.Empty,
+                    imageUrl = i.ImageUrl ?? string.Empty
+                }).ToList();
+                serializedItems = JsonSerializer.Serialize(itemsToSerialize);
+            }
+            else
+            {
+                // Legacy single-product path
+                firstProductId = request.ProductId;
+                unitImportPrice = request.UnitImportPrice ?? request.ImportPrice;
+                totalImportAmount = request.Quantity * unitImportPrice;
+                serializedItems = string.Empty;
+            }
+
+            // Resolve the main accompanying image URL
+            var firstProduct = await _db.Products
                 .Include(p => p.ProductImages)
-                .FirstOrDefaultAsync(p => p.Id == request.ProductId);
-            var selectedProductImages = selectedProduct == null
+                .FirstOrDefaultAsync(p => p.Id == firstProductId);
+            var firstProductImages = firstProduct == null
                 ? Array.Empty<ProductImageDto>()
-                : ProductService.MapProductImages(selectedProduct);
+                : ProductService.MapProductImages(firstProduct);
             var receiptImageUrl = !string.IsNullOrWhiteSpace(request.ImageUrl)
                 ? request.ImageUrl.Trim()
-                : selectedProduct == null
+                : firstProduct == null
                     ? string.Empty
-                    : ProductService.GetMainImage(selectedProduct, selectedProductImages);
-            var unitImportPrice = request.UnitImportPrice ?? request.ImportPrice;
+                    : ProductService.GetMainImage(firstProduct, firstProductImages);
+
             var receipt = new Receipt
             {
                 ReceiptCode = GenerateCode("REC"),
                 SupplierId = supplier.Id,
                 RequestId = request.RequestId,
-                ProductId = request.ProductId,
-                Quantity = request.Quantity,
+                ProductId = firstProductId,
+                Quantity = hasMultiItems ? request.Items!.Sum(i => i.Quantity) : request.Quantity,
                 ImportPrice = unitImportPrice,
-                TotalImportAmount = request.Quantity * unitImportPrice,
+                TotalImportAmount = totalImportAmount,
                 ReceiptType = request.RequestId.HasValue && request.RequestId > 0 ? ReceiptType.RequestedReceipt : ReceiptType.ProposalReceipt,
                 ImageUrl = receiptImageUrl,
                 Content = request.Content?.Trim() ?? string.Empty,
-                Specifications = string.IsNullOrWhiteSpace(request.Specifications) ? request.Content?.Trim() ?? string.Empty : request.Specifications.Trim(),
+                // Store serialized items in Specifications; preserve user-provided specs if no multi-items
+                Specifications = hasMultiItems
+                    ? serializedItems
+                    : (string.IsNullOrWhiteSpace(request.Specifications) ? request.Content?.Trim() ?? string.Empty : request.Specifications.Trim()),
                 Note = request.Note?.Trim() ?? string.Empty,
                 FromAddress = request.FromAddress?.Trim() ?? string.Empty,
                 ToAddress = request.ToAddress?.Trim() ?? string.Empty,
@@ -474,7 +631,7 @@ namespace BaseCore.Services
             }
 
             var created = await _receiptRepository.GetByIdWithDetailsAsync(receipt.Id) ?? receipt;
-            return ApiResponse<ReceiptDto>.Ok(MapReceipt(created), "Đã tạo biên lai");
+            return ApiResponse<ReceiptDto>.Ok(MapReceipt(created, "Supplier"), "Đã tạo biên lai");
         }
 
         private async Task<List<string>> ValidateCreateAsync(Supplier supplier, CreateReceiptDto request)
@@ -496,23 +653,86 @@ namespace BaseCore.Services
                 errors.Add("Nhà cung cấp chưa được gán danh mục");
             }
 
-            var product = request.ProductId > 0
-                ? await _db.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == request.ProductId)
-                : null;
-            if (product == null)
+            var hasMultiItems = request.Items != null && request.Items.Count > 0;
+
+            if (hasMultiItems)
             {
-                errors.Add("Sản phẩm không tồn tại");
+                // Validate each item in the multi-item list
+                for (int index = 0; index < request.Items!.Count; index++)
+                {
+                    var item = request.Items[index];
+                    var lineLabel = $"Dòng {index + 1}";
+
+                    if (item.ProductId <= 0)
+                    {
+                        errors.Add($"{lineLabel}: Vui lòng chọn sản phẩm");
+                        continue;
+                    }
+
+                    var itemProduct = await _db.Products
+                        .Include(p => p.Category)
+                        .FirstOrDefaultAsync(p => p.Id == item.ProductId);
+
+                    if (itemProduct == null)
+                    {
+                        errors.Add($"{lineLabel}: Sản phẩm #{item.ProductId} không tồn tại");
+                    }
+                    else
+                    {
+                        if (itemProduct.SupplierId != supplier.Id)
+                        {
+                            errors.Add($"{lineLabel}: Sản phẩm \"{itemProduct.NameVi}\" không thuộc nhà cung cấp này");
+                        }
+
+                        if (supplier.CategoryId.HasValue && itemProduct.CategoryId != supplier.CategoryId.Value)
+                        {
+                            errors.Add($"{lineLabel}: Danh mục sản phẩm \"{itemProduct.NameVi}\" không trùng với danh mục của nhà cung cấp");
+                        }
+                    }
+
+                    if (item.Quantity <= 0)
+                    {
+                        errors.Add($"{lineLabel}: Số lượng phải lớn hơn 0");
+                    }
+
+                    if (item.UnitImportPrice < 0)
+                    {
+                        errors.Add($"{lineLabel}: Giá nhập không được âm");
+                    }
+                }
             }
             else
             {
-                if (product.SupplierId != supplier.Id)
+                // Legacy single-product validation
+                var product = request.ProductId > 0
+                    ? await _db.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == request.ProductId)
+                    : null;
+                if (product == null)
                 {
-                    errors.Add("Sản phẩm không thuộc nhà cung cấp này");
+                    errors.Add("Sản phẩm không tồn tại");
+                }
+                else
+                {
+                    if (product.SupplierId != supplier.Id)
+                    {
+                        errors.Add("Sản phẩm không thuộc nhà cung cấp này");
+                    }
+
+                    if (supplier.CategoryId.HasValue && product.CategoryId != supplier.CategoryId.Value)
+                    {
+                        errors.Add("Danh mục sản phẩm không trùng với danh mục của nhà cung cấp");
+                    }
                 }
 
-                if (supplier.CategoryId.HasValue && product.CategoryId != supplier.CategoryId.Value)
+                if (request.Quantity <= 0)
                 {
-                    errors.Add("Danh mục sản phẩm không trùng với danh mục của nhà cung cấp");
+                    errors.Add("Số lượng phải lớn hơn 0");
+                }
+
+                var importPrice = request.UnitImportPrice ?? request.ImportPrice;
+                if (importPrice < 0)
+                {
+                    errors.Add("Giá nhập không được âm");
                 }
             }
 
@@ -530,7 +750,8 @@ namespace BaseCore.Services
                         errors.Add("Yêu cầu không thuộc nhà cung cấp này");
                     }
 
-                    if (supplierRequest.ProductId.HasValue && supplierRequest.ProductId.Value != request.ProductId)
+                    var firstProductId = hasMultiItems ? request.Items![0].ProductId : request.ProductId;
+                    if (supplierRequest.ProductId.HasValue && supplierRequest.ProductId.Value != firstProductId)
                     {
                         errors.Add("Sản phẩm trong biên lai phải trùng với sản phẩm được yêu cầu");
                     }
@@ -541,17 +762,6 @@ namespace BaseCore.Services
                         errors.Add("Yêu cầu này chưa thể tạo biên lai");
                     }
                 }
-            }
-
-            if (request.Quantity <= 0)
-            {
-                errors.Add("Số lượng phải lớn hơn 0");
-            }
-
-            var importPrice = request.UnitImportPrice ?? request.ImportPrice;
-            if (importPrice < 0)
-            {
-                errors.Add("Giá nhập không được âm");
             }
 
             return errors;
@@ -580,7 +790,7 @@ namespace BaseCore.Services
             receipt.CancelReason = reason?.Trim() ?? string.Empty;
             await _db.SaveChangesAsync();
 
-            return ApiResponse<ReceiptDto>.Ok(MapReceipt(receipt), "Đã hủy biên lai");
+            return ApiResponse<ReceiptDto>.Ok(MapReceipt(receipt, "Supplier"), "Đã hủy biên lai");
         }
 
         private async Task AddRevenueTransactionIfMissingAsync(
@@ -762,6 +972,27 @@ namespace BaseCore.Services
                 ReceiptStatus.RejectedByAdmin => "RejectedByAdmin",
                 _ => status.ToString()
             };
+        }
+
+        private static IReadOnlyList<string> GetAllowedReceiptActions(ReceiptStatus status, string? viewerRole)
+        {
+            if (status != ReceiptStatus.Pending)
+            {
+                return Array.Empty<string>();
+            }
+
+            var role = viewerRole?.Trim().ToLowerInvariant();
+            if (role == "admin")
+            {
+                return new[] { "approve", "reject" };
+            }
+
+            if (role == "supplier")
+            {
+                return new[] { "cancel" };
+            }
+
+            return new[] { "approve", "reject", "cancel" };
         }
 
         private static string GenerateCode(string prefix)

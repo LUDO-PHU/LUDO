@@ -10,15 +10,12 @@ export default function MainLayout() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
 
-    // 1. LẤY NGÔN NGỮ TỪ LOCAL STORAGE HOẶC MẶC ĐỊNH LÀ 'vi'
     const [lang, setLang] = useState(() => localStorage.getItem('app_lang') || 'vi');
 
-    // 2. TỰ ĐỘNG LƯU LẠI KHI NGƯỜI DÙNG BẤM CHUYỂN ĐỔI
     useEffect(() => {
         localStorage.setItem('app_lang', lang);
     }, [lang]);
 
-    // 3. TỪ ĐIỂN CHO NAVBAR
     const t = {
         vi: { policy: "📋 Chính sách", orders: "Đơn hàng", logout: "Đăng xuất" },
         en: { policy: "📋 Chính sách", orders: "Đơn hàng", logout: "Đăng xuất" }
@@ -62,7 +59,7 @@ export default function MainLayout() {
                             📱 PhoneStore
                         </Link>
 
-                        {/* NÚT ĐỔI NGÔN NGỮ */}
+                        {     }
                         <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.1)', padding: '3px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)' }}>
                             <button
                                 onClick={() => setLang('vi')}
@@ -84,7 +81,7 @@ export default function MainLayout() {
                             >TV</button>
                         </div>
 
-                        {/* ÉP BIẾN DỊCH VÀO ĐÂY */}
+                        {      }
                         <button
                             style={{
                                 border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -98,7 +95,7 @@ export default function MainLayout() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '25px' }}>
-                        {/* ÉP BIẾN DỊCH VÀO ĐÂY */}
+                        {      }
                         <Link to="/customer/orders" style={{ textDecoration: 'none', color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: '14px' }}>
                             {t[lang].orders}
                         </Link>
@@ -123,7 +120,7 @@ export default function MainLayout() {
                                 {user?.name?.charAt(0) || 'U'}
                             </div>
 
-                            {/* ÉP BIẾN DỊCH VÀO ĐÂY */}
+                            {      }
                             <button
                                 onClick={() => { logout(); navigate('/login'); }}
                                 style={{ border: 'none', background: 'transparent', color: '#fca5a5', cursor: 'pointer', fontWeight: '800', fontSize: '14px' }}

@@ -52,7 +52,6 @@ namespace BaseCore.DTO.Sales
         public int PageSize { get; set; } = 10;
     }
 
-    // DTO cho User tự cập nhật hồ sơ (không cho đổi Role)
     public class UpdateProfileDto
     {
         public string FullName { get; set; } = string.Empty;

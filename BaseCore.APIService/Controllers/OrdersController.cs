@@ -36,7 +36,7 @@ namespace BaseCore.APIService.Controllers
 
             request ??= new OrderSearchRequestDto();
             request.UserId = userId.Value;
-            return ToActionResult(await _orderService.SearchAsync(request));
+            return ToActionResult(await _orderService.SearchAsync(request, "User"));
         }
 
         [HttpGet("search")]
@@ -45,13 +45,13 @@ namespace BaseCore.APIService.Controllers
         public async Task<IActionResult> Search([FromQuery] OrderSearchRequestDto request)
         {
             request ??= new OrderSearchRequestDto();
-            return ToActionResult(await _orderService.SearchAsync(request));
+            return ToActionResult(await _orderService.SearchAsync(request, "Admin"));
         }
 
         [HttpGet("{id:int}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var response = await _orderService.GetByIdDtoAsync(id);
+            var response = await _orderService.GetByIdDtoAsync(id, User.IsInRole("Admin") ? "Admin" : "User");
             if (response.Success && response.Data != null && !User.IsInRole("Admin") && response.Data.UserId != GetCurrentUserId())
             {
                 return Forbid();
@@ -127,7 +127,7 @@ namespace BaseCore.APIService.Controllers
         [Authorize(Roles = "User")]
         public async Task<IActionResult> Received(int id)
         {
-            var order = await _orderService.GetByIdDtoAsync(id);
+            var order = await _orderService.GetByIdDtoAsync(id, "User");
             if (!order.Success || order.Data == null) return NotFound(order);
             if (order.Data.UserId != GetCurrentUserId()) return Forbid();
 
@@ -138,7 +138,7 @@ namespace BaseCore.APIService.Controllers
         [Authorize(Roles = "Admin,User")]
         public async Task<IActionResult> Cancel(int id, [FromBody] UpdateOrderStatusDto? request)
         {
-            var order = await _orderService.GetByIdDtoAsync(id);
+            var order = await _orderService.GetByIdDtoAsync(id, User.IsInRole("Admin") ? "Admin" : "User");
             if (!order.Success || order.Data == null) return NotFound(order);
 
             if (!User.IsInRole("Admin") && order.Data.UserId != GetCurrentUserId())

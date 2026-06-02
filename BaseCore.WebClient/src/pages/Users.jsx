@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { orderApi, userApi, unwrapApiData, unwrapPagedData } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { ORDER_STATUS, activeLabel, formatVnd, readValue, roleLabel } from '../utils/display';
@@ -317,9 +317,18 @@ const Users = () => {
                     <div className="pagination-wrapper">
                         <div className="pagination">
                             <button className="btn-page" disabled={params.page === 1} onClick={() => setParams(prev => ({ ...prev, page: prev.page - 1 }))}>‹</button>
-                            {Array.from({ length: Math.min(totalPages, 7) }).map((_, index) => (
-                                <button key={index + 1} className={`btn-page ${params.page === index + 1 ? 'active' : ''}`} onClick={() => setParams(prev => ({ ...prev, page: index + 1 }))}>{index + 1}</button>
-                            ))}
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => {
+                                const w = 2;
+                                return p === 1 || p === totalPages || (p >= params.page - w && p <= params.page + w);
+                            }).reduce((acc, p) => {
+                                if (acc.length > 0 && p - acc[acc.length - 1] > 1) acc.push('...');
+                                acc.push(p);
+                                return acc;
+                            }, []).map((p, idx) =>
+                                p === '...'
+                                    ? <span key={`ellipsis-${idx}`} className="btn-page btn-page-ellipsis">…</span>
+                                    : <button key={p} className={`btn-page ${params.page === p ? 'active' : ''}`} onClick={() => setParams(prev => ({ ...prev, page: p }))}>{p}</button>
+                            )}
                             <button className="btn-page" disabled={params.page === totalPages} onClick={() => setParams(prev => ({ ...prev, page: prev.page + 1 }))}>›</button>
                         </div>
                     </div>
