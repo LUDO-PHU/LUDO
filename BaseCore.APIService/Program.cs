@@ -94,7 +94,13 @@ builder.Services.AddScoped<IRevenueService, RevenueService>();
 
 builder.Services.AddHostedService<AutoStatusWorker>();
 
-var key = Encoding.ASCII.GetBytes(builder.Configuration["Jwt:SecretKey"] ?? "YourSecretKeyForAuthenticationShouldBeLongEnough");
+var secretKey = builder.Configuration["Jwt:SecretKey"];
+if (string.IsNullOrEmpty(secretKey) || secretKey.Length < 16 || secretKey == "<YOUR_SECRET_KEY>")
+{
+    throw new InvalidOperationException("JWT SecretKey is missing, too short, or using the placeholder. Please configure a valid secret key (at least 16 characters) in appsettings.json or environment variables.");
+}
+var key = Encoding.ASCII.GetBytes(secretKey);
+
 builder.Services.AddAuthentication(x =>
 {
     x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
