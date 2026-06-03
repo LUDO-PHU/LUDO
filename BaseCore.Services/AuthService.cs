@@ -74,7 +74,11 @@ namespace BaseCore.Services
 
             var minutes = GetTokenLifetimeMinutes();
             var expiresAt = DateTime.UtcNow.AddMinutes(minutes);
-            var secretKey = _configuration["Jwt:SecretKey"] ?? _configuration["AppSettings:Secret"] ?? "YourSecretKeyForAuthenticationShouldBeLongEnough";
+            var secretKey = _configuration["Jwt:SecretKey"] ?? _configuration["AppSettings:Secret"];
+            if (string.IsNullOrEmpty(secretKey) || secretKey.Length < 16 || secretKey == "<YOUR_SECRET_KEY>")
+            {
+                throw new InvalidOperationException("JWT SecretKey is missing, too short, or using the placeholder. Please configure a valid secret key (at least 16 characters) in appsettings.json or environment variables.");
+            }
             var token = TokenHelper.GenerateToken(secretKey, minutes, user.Id.ToString(), user.UserName, user.Role.ToString());
 
             decimal totalSpent = 0;
