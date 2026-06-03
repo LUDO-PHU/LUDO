@@ -671,10 +671,24 @@ namespace BaseCore.Services
 
         private async Task RestoreStockAsync(Order order)
         {
+            var productIds = order.OrderDetails.Select(d => d.ProductId).Distinct().ToList();
+            var products = await _db.Products
+                .Where(p => productIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id);
+
+            var batchIds = order.OrderDetails
+                .SelectMany(d => d.StockAllocations)
+                .Select(a => a.StockBatchId)
+                .Distinct()
+                .ToList();
+
+            var batches = await _db.StockBatches
+                .Where(b => batchIds.Contains(b.Id))
+                .ToDictionaryAsync(b => b.Id);
+
             foreach (var detail in order.OrderDetails)
             {
-                var product = await _db.Products.FirstOrDefaultAsync(p => p.Id == detail.ProductId);
-                if (product == null)
+                if (!products.TryGetValue(detail.ProductId, out var product))
                 {
                     continue;
                 }
@@ -683,7 +697,12 @@ namespace BaseCore.Services
                 {
                     foreach (var allocation in detail.StockAllocations)
                     {
-                        var batch = allocation.StockBatch ?? await _db.StockBatches.FirstOrDefaultAsync(b => b.Id == allocation.StockBatchId);
+                        var batch = allocation.StockBatch;
+                        if (batch == null && batches.TryGetValue(allocation.StockBatchId, out var dictBatch))
+                        {
+                            batch = dictBatch;
+                        }
+
                         if (batch != null)
                         {
                             batch.QuantityRemaining += allocation.Quantity;
