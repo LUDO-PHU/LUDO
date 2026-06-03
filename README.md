@@ -138,7 +138,7 @@ npm --version
 
 ## 🗄️ Cấu hình SQL Server
 
-### 1. Connection String mặc định
+### 1. Connection String và Secret Key mặc định
 
 File: `BaseCore.APIService\appsettings.json`
 
@@ -148,10 +148,23 @@ File: `BaseCore.APIService\appsettings.json`
     "ConnectedDb": "Server=LUDO\\SQLEXPRESS;Database=BaseCoreSales;Trusted_Connection=True;TrustServerCertificate=True;"
   },
   "Jwt": {
-    "SecretKey": "YourSecretKeyForAuthenticationShouldBeLongEnough"
+    "SecretKey": ""
   }
 }
 ```
+
+> **Lưu ý Bảo mật:** `Jwt:SecretKey` hiện đã được loại bỏ khỏi mã nguồn để đảm bảo an toàn.
+> Ứng dụng sẽ báo lỗi (throw `InvalidOperationException`) nếu bạn không cấu hình key này hoặc cấu hình quá ngắn (< 16 ký tự).
+>
+> **Cách cấu hình Secret Key cho Local Development:**
+>
+> Bạn có thể cấu hình thông qua `appsettings.Development.json` (đã cung cấp sẵn key dummy). Hoặc tốt nhất là dùng `dotnet user-secrets`:
+> ```powershell
+> cd d:\FW-2\FW-2\BaseCore\BaseCore\BaseCore.APIService
+> dotnet user-secrets init
+> dotnet user-secrets set "Jwt:SecretKey" "ChuyenGiDoBiMatKhongTheTietLo123!"
+> ```
+> *(Làm tương tự cho thư mục `BaseCore.AuthService` nếu bạn chạy AuthService độc lập).*
 
 > **Giải thích:**
 > - `LUDO\\SQLEXPRESS` → Tên máy tính `LUDO` + Instance `SQLEXPRESS`
