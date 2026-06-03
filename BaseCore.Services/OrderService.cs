@@ -148,6 +148,9 @@ namespace BaseCore.Services
                 decimal totalAmount = 0;
                 decimal totalImportCost = 0;
 
+                var productIds = requestedItems.Select(x => x.ProductId).Distinct().ToList();
+                var productsDict = await _db.Products.Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
+
                 foreach (var item in requestedItems)
                 {
                     if (item.Quantity <= 0)
@@ -155,7 +158,7 @@ namespace BaseCore.Services
                         return ApiResponse<OrderDto>.Fail("Số lượng phải lớn hơn 0");
                     }
 
-                    var product = await _db.Products.FirstOrDefaultAsync(p => p.Id == item.ProductId);
+                    productsDict.TryGetValue(item.ProductId, out var product);
                     if (product == null)
                     {
                         return ApiResponse<OrderDto>.Fail($"Không tìm thấy sản phẩm #{item.ProductId}");

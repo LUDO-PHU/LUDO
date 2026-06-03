@@ -2,7 +2,7 @@ using Newtonsoft.Json;
 using NUnit.Framework;
 using BaseCore.Common;
 using BaseCore.Entities;
-using BaseCore.Libs.Repository;
+
 using BaseCore.Repository.Authen;
 using System;
 
