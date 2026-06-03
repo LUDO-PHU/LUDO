@@ -87,8 +87,6 @@ const Cart = () => {
             return;
         }
 
-        // Optimistic update: cập nhật số lượng tại chỗ, không reload toàn bộ giỏ
-        // để tránh scroll nhảy về đầu trang
         const prevCart = cart;
         setCart(prev => prev.map(i =>
             i.productId === productId
@@ -99,7 +97,6 @@ const Cart = () => {
         setUpdatingId(productId);
         try {
             const res = await cartApi.updateItem(productId, newQty);
-            // Nếu API trả về item đã cập nhật, merge vào state
             const updatedItem = res?.data?.data;
             if (updatedItem) {
                 setCart(prev => prev.map(i =>
@@ -109,7 +106,6 @@ const Cart = () => {
             window.dispatchEvent(new Event('cart:changed'));
         } catch (err) {
             showToast(err.response?.data?.message || 'Không thể cập nhật số lượng', 'danger');
-            // Rollback về trạng thái trước nếu lỗi
             setCart(prevCart);
         } finally {
             setUpdatingId(null);
@@ -346,7 +342,7 @@ const Cart = () => {
                                         </div>
                                     </Link>
 
-                                    {/* Using <span> instead of <div> here to bypass global custom.css `.customer-shell div[style*="background"]` override */}
+                                    {              }
                                     <span className="cart-qty-control" style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: '20px', overflow: 'hidden', backgroundColor: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)', height: '36px', width: 'fit-content' }}>
                                         <button
                                             style={{ width: '32px', height: '100%', background: 'transparent', border: 'none', cursor: isUpdating ? 'not-allowed' : 'pointer', fontWeight: 'bold', color: 'var(--primary)', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center' }}

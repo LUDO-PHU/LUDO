@@ -13,9 +13,9 @@ const STATUS_VI = {
 };
 
 const STATUS_COLORS = {
-    0: '#f59e0b', // Amber
-    1: '#10b981', // Emerald
-    2: '#ef4444'  // Red
+    0: '#f59e0b',  
+    1: '#10b981',  
+    2: '#ef4444'   
 };
 
 const STATUS_BG = {
@@ -45,7 +45,6 @@ const DetailModal = ({ request, onClose, onActionSuccess }) => {
     const [submitting, setSubmitting] = useState(false);
     const [orderDetail, setOrderDetail] = useState(null);
 
-    // Fetch order details to show items inside the modal
     useEffect(() => {
         if (request?.orderId) {
             orderApi.getById(request.orderId)
@@ -143,7 +142,7 @@ const DetailModal = ({ request, onClose, onActionSuccess }) => {
                         </div>
                     </div>
 
-                    {/* Order Items Table */}
+                    {    }
                     {details.length > 0 && (
                         <div style={{ marginBottom: '24px' }}>
                             <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#0f172a', fontWeight: '800' }}>Sản phẩm trong đơn</h4>
@@ -175,7 +174,7 @@ const DetailModal = ({ request, onClose, onActionSuccess }) => {
                         </div>
                     )}
 
-                    {/* Admin Response Section */}
+                    {    }
                     {request.status === 0 ? (
                         <div style={{ borderTop: '2px dashed #e2e8f0', paddingTop: '18px' }}>
                             <h4 style={{ margin: '0 0 8px 0', fontSize: '15px', color: '#0f172a', fontWeight: '800' }}>Phản hồi và Xử lý yêu cầu</h4>
@@ -251,8 +250,8 @@ const ReturnRequests = () => {
     const [requests, setRequests] = useState([]);
     const [filtered, setFiltered] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'pending', 'approved', 'rejected'
-    const [filterType, setFilterType] = useState('all'); // 'all', 'return', 'exchange'
+    const [filterStatus, setFilterStatus] = useState('all');     
+    const [filterType, setFilterType] = useState('all');    
     const [selectedRequest, setSelectedRequest] = useState(null);
 
     const loadRequests = useCallback(async (showLoading = true) => {
@@ -314,7 +313,7 @@ const ReturnRequests = () => {
                     </div>
                 </div>
 
-                {/* Filter bar */}
+                {   }
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px', background: '#0f172a', padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', fontWeight: '700' }}>Trạng thái:</span>
@@ -333,7 +332,7 @@ const ReturnRequests = () => {
 
                 </div>
 
-                {/* Table */}
+                {  }
                 <div className="card table-card" style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', overflow: 'hidden' }}>
                     <table className="admin-table">
                         <thead>

@@ -8,6 +8,8 @@ namespace BaseCore.DTO.Sales
         public string ProductName { get; set; } = string.Empty;
         public string ImageUrl { get; set; } = string.Empty;
         public decimal Price { get; set; }
+        public decimal OriginalPrice { get; set; }
+        public decimal DiscountPercent { get; set; }
         public decimal FinalPrice => Price;
         public int Quantity { get; set; }
         public DateTime CreatedAt { get; set; }

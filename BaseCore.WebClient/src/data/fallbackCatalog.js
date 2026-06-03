@@ -1,7 +1,7 @@
 const API_BASE_URL = 'http://127.0.0.1:5000';
 
 export const getImageUrl = (url, apiBaseUrl = API_BASE_URL) => {
-    if (!url) return '/images/products/capsac.jpg';
+    if (!url) return '/images/multi/Error.png';
     if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url;
     if (url.startsWith('/icons') || url.startsWith('/favicon') || url.startsWith('/banner/')) return url;
     return `${apiBaseUrl}${url.startsWith('/') ? '' : '/'}${url}`;

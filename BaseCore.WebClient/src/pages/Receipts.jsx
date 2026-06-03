@@ -391,7 +391,6 @@ const CreateReceiptModal = ({ products, initialData, onClose, onSubmit }) => {
 
     const getProductById = (id) => products.find(p => Number(p.id) === Number(id));
 
-    // Auto-fill price when product is selected and price is empty
     const updateItem = (index, field, value) => {
         setItems(prev => {
             const updated = prev.map((item, i) => i === index ? { ...item, [field]: value } : item);
@@ -453,7 +452,7 @@ const CreateReceiptModal = ({ products, initialData, onClose, onSubmit }) => {
                             </div>
                         )}
 
-                        {/* ── Product line items ────────────────────────── */}
+                        {      }
                         <div className="section-title" style={{ marginBottom: 10 }}>Danh sách sản phẩm</div>
 
                         {items.map((item, index) => {
@@ -519,7 +518,7 @@ const CreateReceiptModal = ({ products, initialData, onClose, onSubmit }) => {
                             <i className="fa fa-plus" /> Thêm sản phẩm
                         </button>
 
-                        {/* ── Grand total ───────────────────────────────── */}
+                        {     }
                         <div className="form-group" style={{ background: 'rgba(99,102,241,0.1)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontWeight: 700, fontSize: 15 }}>Tổng cộng</span>
@@ -528,7 +527,7 @@ const CreateReceiptModal = ({ products, initialData, onClose, onSubmit }) => {
                             <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>{items.filter(i => i.productId).length} sản phẩm</div>
                         </div>
 
-                        {/* ── Accompanying image ────────────────────────── */}
+                        {     }
                         <div className="form-group">
                             <label className="form-label"><i className="fa fa-image" style={{ marginRight: 6 }} />Ảnh kèm theo biên lai (tùy chọn)</label>
                             <input type="url" className="form-control" placeholder="Dán link ảnh kèm theo biên lai..."
@@ -666,7 +665,7 @@ const AdminRequestForm = ({ categories, onCreated }) => {
         <div className="card">
             <div className="section-title">Tạo yêu cầu nhập hàng</div>
             <form onSubmit={submit}>
-                {/* ── Header: Category + Supplier ────────────────────── */}
+                {       }
                 <div className="form-grid-2" style={{ marginBottom: 4 }}>
                     <div className="form-group">
                         <label className="form-label">Danh mục *</label>
@@ -694,7 +693,7 @@ const AdminRequestForm = ({ categories, onCreated }) => {
                     </div>
                 )}
 
-                {/* ── Product rows ────────────────────────────────────── */}
+                {     }
                 <div className="section-title" style={{ margin: '10px 0 10px' }}>Danh sách sản phẩm yêu cầu</div>
 
                 {items.map((item, index) => (
@@ -756,7 +755,7 @@ const AdminRequestForm = ({ categories, onCreated }) => {
                     <i className="fa fa-plus" /> Thêm sản phẩm yêu cầu
                 </button>
 
-                {/* ── Grand summary ────────────────────────────────────── */}
+                {     }
                 {items.filter(i => i.productId || i.requestedProductName).length > 0 && (
                     <div style={{ background: 'rgba(99,102,241,0.1)', borderRadius: 10, padding: '10px 16px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontWeight: 700, fontSize: 14 }}>Tổng yêu cầu</span>
@@ -807,7 +806,6 @@ const Receipts = () => {
     const [initialReceipt, setInitialReceipt] = useState(null);
     const [params, setParams] = useState({ page: 1, pageSize: 10, keyword: '', status: '', receiptType: '', categoryId: '', supplierId: '', fromDate: '', toDate: '' });
     const [supplierOptions, setSupplierOptions] = useState([]);
-    // Admin: sent supplier requests
     const [myRequests, setMyRequests] = useState([]);
     const [myRequestsTotal, setMyRequestsTotal] = useState(0);
     const [myRequestsLoading, setMyRequestsLoading] = useState(false);
@@ -908,16 +906,13 @@ const Receipts = () => {
             };
 
             if (Array.isArray(form.items) && form.items.length > 0) {
-                // Multi-item path
                 payload.items = form.items;
-                // Set primary product fields to first item for legacy compatibility
                 const first = form.items[0];
                 payload.productId = first.productId;
                 payload.quantity = first.quantity;
                 payload.unitImportPrice = first.unitImportPrice;
                 payload.importPrice = first.unitImportPrice;
             } else {
-                // Legacy single-product path
                 payload.productId = Number(form.productId);
                 payload.quantity = Number(form.quantity);
                 payload.unitImportPrice = Number(form.unitImportPrice);
@@ -974,7 +969,7 @@ const Receipts = () => {
 
     const handleCancelRequest = async (id) => {
         const reason = window.prompt('Lý do hủy yêu cầu (không bắt buộc):');
-        if (reason === null) return; // user pressed Cancel on the dialog
+        if (reason === null) return;       
         try {
             await supplierRequestApi.cancel(id, reason || '');
             showToast('Đã hủy yêu cầu', 'success');
@@ -1016,7 +1011,7 @@ const Receipts = () => {
                     <AdminRequestForm categories={categories} onCreated={() => { loadMyRequests(); setActiveTab('myRequests'); }} />
                 ) : isAdmin && activeTab === 'myRequests' ? (
                     <div>
-                        {/* ── Filters ────────────────────────────────── */}
+                        {    }
                         <div className="filter-bar" style={{ marginBottom: 12 }}>
                             <div className="search-box" style={{ flex: 2 }}>
                                 <i className="fa fa-search" />
@@ -1038,7 +1033,7 @@ const Receipts = () => {
                             </button>
                         </div>
 
-                        {/* ── Table ──────────────────────────────────── */}
+                        {    }
                         <div className="table-responsive card compact-table-card" style={{ padding: 0 }}>
                             <table className="admin-table admin-table-compact">
                                 <thead>
@@ -1110,7 +1105,7 @@ const Receipts = () => {
                             </table>
                         </div>
 
-                        {/* ── Pagination ─────────────────────────────── */}
+                        {    }
                         {myRequestsTotal > requestParams.pageSize && (
                             <div className="pagination" style={{ marginTop: 12 }}>
                                 <button className="btn btn-secondary btn-sm" disabled={requestParams.page <= 1}

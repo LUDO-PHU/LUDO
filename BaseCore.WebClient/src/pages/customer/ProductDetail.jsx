@@ -7,7 +7,7 @@ import { formatAppDate } from '../../utils/dateTime';
 import { getImageUrl as resolveImageUrl } from '../../data/fallbackCatalog';
 import { goBackOrHome } from '../../utils/navigation';
 import { getMainImage, getProductImages } from '../../utils/display';
-const PLACEHOLDER = "https://placehold.co/600x600/f1f5f9/94a3b8?text=No+Image";
+const PLACEHOLDER = "images/multi/Error.png";
 const getImageUrl = (url) => {
     if (!url) return PLACEHOLDER;
     return resolveImageUrl(url);
@@ -45,7 +45,6 @@ const ProductDetail = () => {
                     setRelatedProducts(filteredRelated);
                 }
 
-                // Tải đánh giá
                 let reviewItems = [];
                 try {
                     const reviewRes = await reviewApi.getByProduct(id);
@@ -145,21 +144,17 @@ const ProductDetail = () => {
         if (!isAvailable) return showToast('Sản phẩm đã hết hàng!', 'danger');
 
         try {
-            // Lấy danh sách giỏ hàng hiện tại để kiểm tra sản phẩm đã tồn tại hay chưa
             const res = await cartApi.getCart();
             const cartItems = res.data?.data || [];
             const existingItem = cartItems.find(item => item.productId === product.id);
 
             if (existingItem) {
-                // Nếu sản phẩm đã tồn tại trong giỏ hàng, cập nhật đúng số lượng được chọn
                 await cartApi.updateItem(product.id, quantity);
             } else {
-                // Nếu chưa tồn tại, thêm mới với số lượng được chọn
                 await cartApi.addItem(product.id, quantity, selectedImage);
             }
 
             window.dispatchEvent(new Event('cart:changed'));
-            // Lưu productId vào sessionStorage để Checkout lọc đúng sản phẩm
             sessionStorage.setItem('checkout_selected_product_ids', JSON.stringify([product.id]));
             navigate('/customer/checkout');
         } catch (err) {
@@ -184,7 +179,6 @@ const ProductDetail = () => {
             });
             showToast(currentUserReview ? 'Cập nhật đánh giá thành công!' : 'Gửi đánh giá thành công!', 'success');
             setNewReview({ rating: 5, comment: '' });
-            // Reload reviews
             const reviewRes = await reviewApi.getByProduct(id);
             const reviewItems = unwrapApiData(reviewRes, []);
             const normalizedReviews = Array.isArray(reviewItems) ? reviewItems : [];
@@ -215,7 +209,7 @@ const ProductDetail = () => {
                 <span style={{ cursor: 'pointer', fontWeight: 'bold', color: '#0ea5e9' }} onClick={() => goBackOrHome(navigate)}>← Quay lại</span> / Chi tiết sản phẩm / {product.nameVi || product.name}
             </div>
 
-            {/* THÔNG TIN CHÍNH */}
+            {    }
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '40px', padding: '40px' }}>
                 <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'stretch', gap: '14px', position: 'relative', minWidth: 0 }}>
                     {product.discountPercent > 0 && (
@@ -304,7 +298,7 @@ const ProductDetail = () => {
                 </div>
             </div>
 
-            {/* MÔ TẢ CHI TIẾT */}
+            {     }
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '40px', padding: '40px', background: '#f8fafc', borderTop: '1px solid #eee' }}>
                 <div>
                     <h3 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '20px', paddingBottom: '10px', borderBottom: '2px solid #0ea5e9', display: 'inline-block' }}>Đặc điểm nổi bật</h3>
@@ -316,7 +310,7 @@ const ProductDetail = () => {
                 </div>
             </div>
 
-            {/* PHẦN ĐÁNH GIÁ */}
+            {    }
             <div style={{ padding: '40px', borderTop: '1px solid #eee' }}>
                 <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '30px' }}>Khách hàng đánh giá</h3>
                 
@@ -374,7 +368,7 @@ const ProductDetail = () => {
                 </div>
             </div>
 
-            {/* SẢN PHẨM TƯƠNG TỰ */}
+            {     }
             {relatedProducts.length > 0 && (
                 <div style={{ padding: '40px' }}>
                     <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '30px', textAlign: 'center' }}>SẢN PHẨM CÙNG DANH MỤC</h3>

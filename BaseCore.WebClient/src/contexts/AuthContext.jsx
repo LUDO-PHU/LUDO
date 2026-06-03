@@ -34,12 +34,10 @@ export const AuthProvider = ({ children }) => {
                 setUser(userData);
             }
         } catch {
-            // Silence error on token expiry / invalid token
         }
     }, []);
 
     useEffect(() => {
-        // Khôi phục session từ localStorage khi reload trang
         const token = localStorage.getItem('token');
         const storedUser = localStorage.getItem('user');
 
@@ -47,7 +45,6 @@ export const AuthProvider = ({ children }) => {
             try {
                 setUser(JSON.parse(storedUser));
                 setIsAuthenticated(true);
-                // Cập nhật thông tin mới nhất từ API me
                 refreshUser();
             } catch {
                 localStorage.removeItem('user');
@@ -59,8 +56,6 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (username, password) => {
         try {
-            // Backend trả về: ApiResponse<LoginResponseDto>
-            // res.data = { success: true, data: { token, expiresAt, user: AuthUserDto } }
             const res = await authApi.login(username, password);
             const body = res.data;
 
@@ -74,21 +69,19 @@ export const AuthProvider = ({ children }) => {
                 return { success: false, message: 'Dữ liệu phản hồi từ máy chủ không hợp lệ.' };
             }
 
-            // Chuẩn hóa user object để toàn bộ Frontend dùng nhất quán:
-            // authUser từ backend có: id, username, fullName, email, phone, role, userType, memberTier
             const userData = {
                 id: authUser.id,
-                userName: authUser.username,       // dùng để hiển thị tên đăng nhập
-                name: authUser.fullName || authUser.username, // dùng để hiển thị
+                userName: authUser.username,              
+                name: authUser.fullName || authUser.username,     
                 email: authUser.email,
                 phone: authUser.phone,
-                role: authUser.role,               // "Admin" | "Supplier" | "User"
-                userType: authUser.userType,       // 0=User, 1=Admin, 2=Supplier
+                role: authUser.role,                    
+                userType: authUser.userType,          
                 supplierId: authUser.supplierId,
                 companyName: authUser.companyName,
                 supplierCategoryId: authUser.supplierCategoryId,
                 supplierCategoryName: authUser.supplierCategoryName,
-                tier: authUser.memberTier || 'Đồng',                      // Mặc định hạng đồng
+                tier: authUser.memberTier || 'Đồng',                          
             };
 
             localStorage.setItem('token', token);
@@ -104,7 +97,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // Cập nhật thông tin user sau khi chỉnh sửa Profile
     const updateUser = (newData) => {
         const updated = { ...user, ...newData };
         localStorage.setItem('user', JSON.stringify(updated));

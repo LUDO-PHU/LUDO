@@ -32,6 +32,8 @@ namespace BaseCore.Services
                 Price = i.Product == null
                     ? 0
                     : ProductService.CalculateFinalPrice(i.Product),
+                OriginalPrice = i.Product?.Price ?? 0,
+                DiscountPercent = i.Product?.DiscountPercent ?? 0,
                 Quantity = i.Quantity,
                 CreatedAt = i.CreatedAt,
                 ProductStock = i.Product?.Stock ?? 0,

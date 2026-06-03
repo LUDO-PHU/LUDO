@@ -51,11 +51,9 @@ const Profile = () => {
 
         setIsLoading(true);
         try {
-            // Gọi API thật: PUT /api/users/profile
             const payload = {
                 fullName: formData.name,
             };
-            // Chỉ gửi thông tin đổi mật khẩu nếu user nhập
             if (formData.newPassword) {
                 payload.oldPassword = formData.oldPassword;
                 payload.newPassword = formData.newPassword;
@@ -63,7 +61,6 @@ const Profile = () => {
 
             await userApi.updateProfile(payload);
 
-            // Cập nhật AuthContext để header và Profile hiển thị tên mới
             updateUser({ name: formData.name });
 
             showToast("Cập nhật tài khoản thành công!", "success");
@@ -86,7 +83,7 @@ const Profile = () => {
                     </button>
                 </div>
 
-                {/* TIÊU ĐỀ & AVATAR */}
+                {     }
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px', borderBottom: '2px solid #f1f5f9', paddingBottom: '30px', marginBottom: '30px' }}>
                     <div style={{ width: '80px', height: '80px', background: 'linear-gradient(135deg, #0ea5e9, #1e3a8a)', color: '#fff', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: '900', fontSize: '32px', border: `3px solid ${tierColor}`, boxShadow: `0 0 15px ${tierColor}66` }}>
                         {user?.name?.charAt(0)?.toUpperCase() || 'U'}
@@ -99,22 +96,22 @@ const Profile = () => {
                     </div>
                 </div>
 
-                {/* FORM CHỈNH SỬA */}
+                {    }
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-                    {/* Username — chỉ đọc */}
+                    {     }
                     <div>
                         <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#475569', marginBottom: '8px' }}>Tên đăng nhập (Không thể đổi)</label>
                         <input type="text" value={user?.userName || "user_demo"} disabled style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#94a3b8', fontSize: '15px', fontWeight: '600', cursor: 'not-allowed', boxSizing: 'border-box' }} />
                     </div>
 
-                    {/* Tên hiển thị */}
+                    {    }
                     <div>
                         <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#1e293b', marginBottom: '8px' }}>Tên hiển thị</label>
                         <input type="text" name="name" value={formData.name} onChange={handleChange} required style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '15px', color: '#1e293b', boxSizing: 'border-box' }} placeholder="Nhập tên của bạn..." />
                     </div>
 
-                    {/* Đổi mật khẩu */}
+                    {    }
                     <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px dashed #cbd5e1', marginTop: '10px' }}>
                         <h4 style={{ margin: '0 0 15px 0', fontSize: '15px', color: '#1e3a8a', fontWeight: '800' }}>🔒 Đổi mật khẩu (Bỏ qua nếu không muốn đổi)</h4>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
