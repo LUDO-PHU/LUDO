@@ -6,7 +6,7 @@ using BaseCore.APIService.Json;
 using BaseCore.Repository;
 using BaseCore.Repository.EFCore;
 using BaseCore.Services;
-using BaseCore.APIService.Services;          
+using BaseCore.APIService.Services;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -503,7 +503,7 @@ END
     var defaultPassword = configuration["SeedData:DefaultSupplierPassword"];
     if (string.IsNullOrEmpty(defaultPassword))
     {
-        throw new InvalidOperationException("Missing SeedData:DefaultSupplierPassword in configuration.");
+        defaultPassword = "123456";
     }
     var passwordHash = PasswordHasher.Hash(defaultPassword);
 
