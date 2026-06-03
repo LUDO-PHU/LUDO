@@ -302,7 +302,7 @@ namespace BaseCore.Services
 
             if (!role.HasValue)
             {
-                if (Enum.TryParse<Role>(value, true, out var parsed))
+                if (Enum.TryParse<Role>(value, true, out var parsed) && Enum.IsDefined(typeof(Role), parsed))
                 {
                     role = parsed;
                 }

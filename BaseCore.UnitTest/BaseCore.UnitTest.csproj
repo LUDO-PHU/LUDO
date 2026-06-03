@@ -24,6 +24,13 @@
     <ProjectReference Include="..\BaseCore.Common\BaseCore.Common.csproj" />
     <ProjectReference Include="..\BaseCore.Libs\BaseCore.Libs.csproj" />
     <ProjectReference Include="..\BaseCore.Repository\BaseCore.Repository.csproj" />
+    <ProjectReference Include="..\BaseCore.Services\BaseCore.Services.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
