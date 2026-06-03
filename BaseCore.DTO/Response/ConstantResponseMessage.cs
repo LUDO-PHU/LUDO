@@ -44,7 +44,6 @@ namespace BaseCore.DTO.Response
         #endregion
     }
 
-    //TODO
     public static class ConstantResponseCode
     {
         public const int SUCCESS = 0;
