@@ -103,6 +103,20 @@ const SupplierRequests = () => {
     const [loading, setLoading] = useState(false);
     const [selected, setSelected] = useState(null);
     const [params, setParams] = useState({ page: 1, pageSize: 10, keyword: '', status: '', fromDate: '', toDate: '' });
+    const [localKw, setLocalKw] = useState(params.keyword);
+
+    useEffect(() => {
+        setLocalKw(params.keyword);
+    }, [params.keyword]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            if (localKw !== params.keyword) {
+                setParams(prev => ({ ...prev, keyword: localKw, page: 1 }));
+            }
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [localKw]);
 
     const totalPages = useMemo(() => Math.ceil(total / params.pageSize) || 1, [total, params.pageSize]);
 
@@ -180,14 +194,32 @@ const SupplierRequests = () => {
                 <div className="filter-bar">
                     <div className="search-box" style={{ flex: 2 }}>
                         <i className="fa fa-search" />
-                        <input className="input-search" placeholder="Tìm sản phẩm hoặc yêu cầu..." value={params.keyword} onChange={event => setParams(prev => ({ ...prev, keyword: event.target.value, page: 1 }))} />
+                        <input className="input-search" placeholder="Tìm sản phẩm hoặc yêu cầu..." value={localKw} onChange={event => setLocalKw(event.target.value)} />
                     </div>
                     <select className="select-filter" value={params.status} onChange={event => setParams(prev => ({ ...prev, status: event.target.value, page: 1 }))}>
                         <option value="">Tất cả trạng thái</option>
                         {Object.entries(REQUEST_STATUS).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}
                     </select>
-                    <input type="date" className="input-search" style={{ paddingLeft: 12 }} value={params.fromDate} onChange={event => setParams(prev => ({ ...prev, fromDate: event.target.value, page: 1 }))} />
-                    <input type="date" className="input-search" style={{ paddingLeft: 12 }} value={params.toDate} onChange={event => setParams(prev => ({ ...prev, toDate: event.target.value, page: 1 }))} />
+                    <div style={{ position: 'relative' }}>
+                        <input 
+                            type="date" 
+                            className="input-search" 
+                            style={{ paddingLeft: '12px', paddingRight: '40px', colorScheme: 'dark' }} 
+                            value={params.fromDate} 
+                            onChange={event => setParams(prev => ({ ...prev, fromDate: event.target.value, page: 1 }))} 
+                        />
+                        <i className="fa fa-calendar" style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                        <input 
+                            type="date" 
+                            className="input-search" 
+                            style={{ paddingLeft: '12px', paddingRight: '40px', colorScheme: 'dark' }} 
+                            value={params.toDate} 
+                            onChange={event => setParams(prev => ({ ...prev, toDate: event.target.value, page: 1 }))} 
+                        />
+                        <i className="fa fa-calendar" style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
+                    </div>
                 </div>
 
                 <div className="table-responsive card compact-table-card" style={{ padding: 0 }}>

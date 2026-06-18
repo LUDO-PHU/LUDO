@@ -74,14 +74,12 @@ api.interceptors.response.use(
     }
 );
 
-// ── AUTH ──────────────────────────────────────────────────────
 export const authApi = {
     login: (username, password) => api.post('/auth/login', { username, password }),
     register: (data) => api.post('/auth/register', data),
     me: () => api.get('/auth/me'),
 };
 
-// ── USERS ─────────────────────────────────────────────────────
 export const userApi = {
     getAll: (params) => api.get('/users', { params }),
     getById: (id) => api.get(`/users/${id}`),
@@ -92,7 +90,6 @@ export const userApi = {
     updateProfile: (data) => api.put('/users/profile', data),
 };
 
-// ── PRODUCTS ──────────────────────────────────────────────────
 export const productApi = {
     getAll: (params) => api.get('/products', { params }),
     search: (params) => api.get('/products/search', { params }),
@@ -108,7 +105,6 @@ export const productApi = {
     delete: (id) => api.delete(`/products/${id}`),
 };
 
-// ── CATEGORIES ────────────────────────────────────────────────
 export const categoryApi = {
     getAll: () => api.get('/categories'),
     search: (params) => api.get('/categories/search', { params }),
@@ -118,7 +114,6 @@ export const categoryApi = {
     delete: (id) => api.delete(`/categories/${id}`),
 };
 
-// ── ORDERS ────────────────────────────────────────────────────
 export const orderApi = {
     create: (data) => api.post('/orders', data),
     checkout: (data) => api.post('/orders/checkout', data),
@@ -133,7 +128,6 @@ export const orderApi = {
     complete: (id) => api.put(`/orders/${id}/received`),
 };
 
-// ── RECEIPTS ──────────────────────────────────────────────────
 export const receiptApi = {
     getAll: (params) => api.get('/admin/receipts', { params }),
     getMy: (params) => api.get('/supplier/receipts', { params }),
@@ -157,7 +151,6 @@ export const supplierRequestApi = {
     reject: (id, rejectionReason) => api.post(`/supplier/requests/${id}/reject`, { rejectionReason }),
 };
 
-// ── SUPPLIERS ─────────────────────────────────────────────────
 export const supplierApi = {
     getAll: (params) => api.get('/suppliers', { params }),
     getById: (id) => api.get(`/suppliers/${id}`),
@@ -167,7 +160,6 @@ export const supplierApi = {
     getMe: () => api.get('/suppliers/me'),
 };
 
-// ── CART ──────────────────────────────────────────────────────
 export const cartApi = {
     getCart: () => api.get('/cart'),
     addItem: (productId, quantity = 1, selectedImageUrl = '') => api.post('/cart/add', { productId, quantity, selectedImageUrl }),
@@ -176,7 +168,6 @@ export const cartApi = {
     clearCart: () => api.delete('/cart/clear'),
 };
 
-// ── NOTIFICATIONS ─────────────────────────────────────────────
 export const notificationApi = {
     getAll: () => api.get('/notifications'),
     getSupplier: () => api.get('/supplier/notifications'),
@@ -184,19 +175,16 @@ export const notificationApi = {
     markAllRead: () => api.patch('/notifications/read-all'),
 };
 
-// ── BANNERS ───────────────────────────────────────────────────
 export const bannerApi = {
     getActive: (position) => api.get('/banners', { params: { position } }),
 };
 
-// ── REVIEWS ───────────────────────────────────────────────────
 export const reviewApi = {
     getByProduct: (productId) => api.get(`/reviews/product/${productId}`),
     getMyReviews: () => api.get('/reviews/me'),
     create: (data) => api.post('/reviews', data),
 };
 
-// ── DASHBOARD ─────────────────────────────────────────────────
 export const dashboardApi = {
     getStats: () => api.get('/admin/dashboard'),
     getSupplierStats: () => api.get('/supplier/dashboard'),
@@ -206,12 +194,11 @@ export const revenueApi = {
     getAdmin: () => api.get('/admin/revenue'),
 };
 
-// ── RETURN REQUESTS ───────────────────────────────────────────
 export const returnRequestApi = {
     create: (data) => api.post('/returns', data),
     upload: (formData) => api.post('/returns/upload', formData),
     getMy: () => api.get('/returns/my'),
-    getAll: () => api.get('/returns/admin'),
+    getAll: (params) => api.get('/returns/admin', { params }),
     approve: (id, comment) => api.put(`/returns/${id}/approve`, { adminComment: comment }),
     reject: (id, comment) => api.put(`/returns/${id}/reject`, { adminComment: comment }),
 };

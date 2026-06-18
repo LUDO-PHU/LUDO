@@ -16,6 +16,21 @@ const Categories = () => {
         sortBy: 'newest'
     });
 
+    const [localKw, setLocalKw] = useState(params.keyword);
+
+    useEffect(() => {
+        setLocalKw(params.keyword);
+    }, [params.keyword]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            if (localKw !== params.keyword) {
+                setParams(prev => ({ ...prev, keyword: localKw, page: 1 }));
+            }
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [localKw]);
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [editingId, setEditingId] = useState(null);
@@ -137,8 +152,8 @@ const Categories = () => {
                             className="input-search"
                             style={{ margin: 0 }}
                             placeholder="Nhập tên hoặc mô tả danh mục cần tìm..."
-                            value={params.keyword}
-                            onChange={e => setParams({ ...params, keyword: e.target.value, page: 1 })}
+                            value={localKw}
+                            onChange={e => setLocalKw(e.target.value)}
                         />
                     </div>
 

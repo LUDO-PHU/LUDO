@@ -88,25 +88,60 @@ const Cart = () => {
         }
 
         const prevCart = cart;
+        const prevSelectedIds = selectedIds;
+
+        const stock = item.productStock ?? item.ProductStock ?? 0;
+        const available = item.isAvailable ?? item.IsAvailable ?? false;
+        
+        const nextCanCheckout = available && stock > 0 && newQty <= stock;
+        const nextCanIncrease = available && newQty < stock;
+        
+        let nextDisabledReason = '';
+        if (!nextCanCheckout) {
+            if (!available || stock <= 0) nextDisabledReason = 'Hết hàng';
+            else nextDisabledReason = `Chỉ còn ${stock}, đang chọn ${newQty}`;
+        }
+        
+        const price = item.finalPrice ?? item.FinalPrice ?? item.price ?? 0;
+        const nextTotal = price * newQty;
+
+        // Cập nhật giỏ hàng cục bộ (optimistic) bao gồm các trạng thái thanh toán mới
         setCart(prev => prev.map(i =>
             i.productId === productId
-                ? { ...i, quantity: newQty, lineTotal: (i.finalPrice ?? i.FinalPrice ?? i.price ?? 0) * newQty }
+                ? {
+                    ...i,
+                    quantity: newQty,
+                    Quantity: newQty,
+                    canCheckout: nextCanCheckout,
+                    CanCheckout: nextCanCheckout,
+                    canIncreaseQuantity: nextCanIncrease,
+                    CanIncreaseQuantity: nextCanIncrease,
+                    checkoutDisabledReason: nextDisabledReason,
+                    CheckoutDisabledReason: nextDisabledReason,
+                    lineTotal: nextTotal,
+                    LineTotal: nextTotal,
+                    total: nextTotal,
+                    Total: nextTotal
+                }
                 : i
         ));
 
+        // Tự động chọn (check) hoặc bỏ chọn (uncheck) theo trạng thái hợp lệ mới
+        if (nextCanCheckout) {
+            setSelectedIds(prev => prev.includes(productId) ? prev : [...prev, productId]);
+        } else {
+            setSelectedIds(prev => prev.filter(id => id !== productId));
+        }
+
         setUpdatingId(productId);
         try {
-            const res = await cartApi.updateItem(productId, newQty);
-            const updatedItem = res?.data?.data;
-            if (updatedItem) {
-                setCart(prev => prev.map(i =>
-                    i.productId === productId ? { ...i, ...updatedItem } : i
-                ));
-            }
+            await cartApi.updateItem(productId, newQty);
             window.dispatchEvent(new Event('cart:changed'));
         } catch (err) {
             showToast(err.response?.data?.message || 'Không thể cập nhật số lượng', 'danger');
+            // Rollback về trạng thái trước nếu lỗi
             setCart(prevCart);
+            setSelectedIds(prevSelectedIds);
         } finally {
             setUpdatingId(null);
         }

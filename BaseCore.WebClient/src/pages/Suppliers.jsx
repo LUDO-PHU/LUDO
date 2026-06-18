@@ -180,6 +180,20 @@ const Suppliers = () => {
     const [loading, setLoading] = useState(false);
     const [selected, setSelected] = useState(null);
     const [params, setParams] = useState({ page: 1, pageSize: 10, keyword: '', isActive: '', categoryId: '' });
+    const [localKw, setLocalKw] = useState(params.keyword);
+
+    useEffect(() => {
+        setLocalKw(params.keyword);
+    }, [params.keyword]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            if (localKw !== params.keyword) {
+                setParams(prev => ({ ...prev, keyword: localKw, page: 1 }));
+            }
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [localKw]);
 
     const totalPages = useMemo(() => Math.ceil(total / params.pageSize) || 1, [total, params.pageSize]);
 
@@ -242,7 +256,7 @@ const Suppliers = () => {
                 <div className="filter-bar">
                     <div className="search-box" style={{ flex: 2 }}>
                         <i className="fa fa-search" />
-                        <input type="text" className="input-search" placeholder="Tìm tên công ty, người liên hệ, email..." value={params.keyword} onChange={event => setParams(prev => ({ ...prev, keyword: event.target.value, page: 1 }))} />
+                        <input type="text" className="input-search" placeholder="Tìm tên công ty, người liên hệ, email..." value={localKw} onChange={event => setLocalKw(event.target.value)} />
                     </div>
                     <select className="select-filter" value={params.categoryId} onChange={event => setParams(prev => ({ ...prev, categoryId: event.target.value, page: 1 }))}>
                         <option value="">Tất cả danh mục</option>

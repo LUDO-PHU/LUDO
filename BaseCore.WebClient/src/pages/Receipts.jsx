@@ -379,7 +379,9 @@ const emptyItem = (productId = '', quantity = '', unitImportPrice = '', note = '
 const CreateReceiptModal = ({ products, initialData, onClose, onSubmit }) => {
     const [items, setItems] = useState(() => {
         if (initialData?.productId) {
-            return [emptyItem(String(initialData.productId), String(initialData.quantity || ''), String(initialData.suggestedPrice || ''), initialData.note || '')];
+            const prod = products.find(p => Number(p.id) === Number(initialData.productId));
+            const initialPrice = prod && prod.importPrice > 0 ? String(prod.importPrice) : String(initialData.suggestedPrice || '');
+            return [emptyItem(String(initialData.productId), String(initialData.quantity || ''), initialPrice, initialData.note || '')];
         }
         return [emptyItem()];
     });
@@ -389,15 +391,36 @@ const CreateReceiptModal = ({ products, initialData, onClose, onSubmit }) => {
     const [specifications, setSpecifications] = useState('');
     const requestId = initialData?.requestId || '';
 
+    useEffect(() => {
+        if (initialData?.productId && products && products.length > 0) {
+            const prod = products.find(p => Number(p.id) === Number(initialData.productId));
+            if (prod && prod.importPrice > 0) {
+                setItems(prev => {
+                    if (prev.length > 0 && String(prev[0].productId) === String(initialData.productId)) {
+                        const currentVal = prev[0].unitImportPrice;
+                        if (!currentVal || currentVal === String(initialData.suggestedPrice || '')) {
+                            const updated = [...prev];
+                            updated[0] = { ...updated[0], unitImportPrice: String(prod.importPrice) };
+                            return updated;
+                        }
+                    }
+                    return prev;
+                });
+            }
+        }
+    }, [products, initialData]);
+
     const getProductById = (id) => products.find(p => Number(p.id) === Number(id));
 
     const updateItem = (index, field, value) => {
         setItems(prev => {
             const updated = prev.map((item, i) => i === index ? { ...item, [field]: value } : item);
-            if (field === 'productId' && value) {
+            if (field === 'productId') {
                 const prod = getProductById(value);
-                if (prod && !updated[index].unitImportPrice) {
+                if (prod) {
                     updated[index].unitImportPrice = String(prod.importPrice || prod.price || '');
+                } else {
+                    updated[index].unitImportPrice = '';
                 }
                 if (prod && !updated[index].imageUrl) {
                     updated[index].imageUrl = '';
@@ -714,7 +737,11 @@ const AdminRequestForm = ({ categories, onCreated }) => {
                                     onChange={e => {
                                         const prod = products.find(p => String(p.id) === String(e.target.value));
                                         updateItem(index, 'productId', e.target.value);
-                                        if (prod && !item.suggestedPrice) updateItem(index, 'suggestedPrice', String(prod.importPrice || prod.price || ''));
+                                        if (prod) {
+                                            updateItem(index, 'suggestedPrice', String(prod.importPrice || prod.price || ''));
+                                        } else {
+                                            updateItem(index, 'suggestedPrice', '');
+                                        }
                                     }}>
                                     <option value="">Không chọn</option>
                                     {products.map(p => <option key={p.id} value={p.id}>{p.nameVi || p.name}</option>)}
@@ -809,7 +836,36 @@ const Receipts = () => {
     const [myRequests, setMyRequests] = useState([]);
     const [myRequestsTotal, setMyRequestsTotal] = useState(0);
     const [myRequestsLoading, setMyRequestsLoading] = useState(false);
-    const [requestParams, setRequestParams] = useState({ page: 1, pageSize: 20, keyword: '', status: '' });
+    const [requestParams, setRequestParams] = useState({ page: 1, pageSize: 20, keyword: '', status: '', fromDate: '', toDate: '' });
+
+    const [localKw, setLocalKw] = useState(params.keyword);
+    const [localRequestKw, setLocalRequestKw] = useState(requestParams.keyword);
+
+    useEffect(() => {
+        setLocalKw(params.keyword);
+    }, [params.keyword]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            if (localKw !== params.keyword) {
+                setParams(prev => ({ ...prev, keyword: localKw, page: 1 }));
+            }
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [localKw]);
+
+    useEffect(() => {
+        setLocalRequestKw(requestParams.keyword);
+    }, [requestParams.keyword]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            if (localRequestKw !== requestParams.keyword) {
+                setRequestParams(prev => ({ ...prev, keyword: localRequestKw, page: 1 }));
+            }
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [localRequestKw]);
 
     const totalPages = useMemo(() => Math.ceil(total / params.pageSize) || 1, [total, params.pageSize]);
 
@@ -866,6 +922,8 @@ const Receipts = () => {
                 ...requestParams,
                 keyword: requestParams.keyword || undefined,
                 status: requestParams.status || undefined,
+                fromDate: requestParams.fromDate || undefined,
+                toDate: requestParams.toDate || undefined,
             });
             const paged = unwrapPagedData(res);
             setMyRequests(paged.items);
@@ -1015,8 +1073,8 @@ const Receipts = () => {
                         <div className="filter-bar" style={{ marginBottom: 12 }}>
                             <div className="search-box" style={{ flex: 2 }}>
                                 <i className="fa fa-search" />
-                                <input className="input-search" placeholder="Tìm nhà cung cấp, sản phẩm, ghi chú..." value={requestParams.keyword}
-                                    onChange={e => setRequestParams(p => ({ ...p, keyword: e.target.value, page: 1 }))} />
+                                <input className="input-search" placeholder="Tìm nhà cung cấp, sản phẩm, ghi chú..." value={localRequestKw}
+                                    onChange={e => setLocalRequestKw(e.target.value)} />
                             </div>
                             <select className="select-filter" value={requestParams.status}
                                 onChange={e => setRequestParams(p => ({ ...p, status: e.target.value, page: 1 }))}>
@@ -1028,6 +1086,26 @@ const Receipts = () => {
                                 <option value="Completed">Hoàn thành</option>
                                 <option value="Cancelled">Đã hủy</option>
                             </select>
+                            <div style={{ position: 'relative' }}>
+                                <input 
+                                    type="date" 
+                                    className="input-search" 
+                                    style={{ paddingLeft: '12px', paddingRight: '40px', colorScheme: 'dark' }} 
+                                    value={requestParams.fromDate} 
+                                    onChange={e => setRequestParams(prev => ({ ...prev, fromDate: e.target.value, page: 1 }))} 
+                                />
+                                <i className="fa fa-calendar" style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
+                            </div>
+                            <div style={{ position: 'relative' }}>
+                                <input 
+                                    type="date" 
+                                    className="input-search" 
+                                    style={{ paddingLeft: '12px', paddingRight: '40px', colorScheme: 'dark' }} 
+                                    value={requestParams.toDate} 
+                                    onChange={e => setRequestParams(prev => ({ ...prev, toDate: e.target.value, page: 1 }))} 
+                                />
+                                <i className="fa fa-calendar" style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
+                            </div>
                             <button className="btn btn-secondary btn-sm" onClick={loadMyRequests} disabled={myRequestsLoading}>
                                 <i className={`fa ${myRequestsLoading ? 'fa-spinner fa-spin' : 'fa-refresh'}`} /> Làm mới
                             </button>
@@ -1128,7 +1206,7 @@ const Receipts = () => {
                         <div className="filter-bar">
                             <div className="search-box" style={{ flex: 2 }}>
                                 <i className="fa fa-search" />
-                                <input className="input-search" placeholder="Tìm mã biên lai, sản phẩm, ghi chú..." value={params.keyword} onChange={event => setParams(prev => ({ ...prev, keyword: event.target.value, page: 1 }))} />
+                                <input className="input-search" placeholder="Tìm mã biên lai, sản phẩm, ghi chú..." value={localKw} onChange={event => setLocalKw(event.target.value)} />
                             </div>
                             <select className="select-filter" value={params.status} onChange={event => setParams(prev => ({ ...prev, status: event.target.value, page: 1 }))}>
                                 <option value="">Tất cả trạng thái</option>
@@ -1139,6 +1217,26 @@ const Receipts = () => {
                                 <option value="ProposalReceipt">Biên lai đề nghị</option>
                                 <option value="RequestedReceipt">Biên lai theo yêu cầu</option>
                             </select>
+                            <div style={{ position: 'relative' }}>
+                                <input 
+                                    type="date" 
+                                    className="input-search"
+                                    style={{ paddingLeft: '12px', paddingRight: '40px', colorScheme: 'dark' }} 
+                                    value={params.fromDate} 
+                                    onChange={event => setParams(prev => ({ ...prev, fromDate: event.target.value, page: 1 }))}
+                                />
+                                <i className="fa fa-calendar" style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
+                            </div>
+                            <div style={{ position: 'relative' }}>
+                                <input 
+                                    type="date" 
+                                    className="input-search"
+                                    style={{ paddingLeft: '12px', paddingRight: '40px', colorScheme: 'dark' }} 
+                                    value={params.toDate} 
+                                    onChange={event => setParams(prev => ({ ...prev, toDate: event.target.value, page: 1 }))}
+                                />
+                                <i className="fa fa-calendar" style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
+                            </div>
                             {isAdmin && (
                                 <>
                                     <select className="select-filter" value={params.categoryId} onChange={event => setParams(prev => ({ ...prev, categoryId: event.target.value, page: 1 }))}>

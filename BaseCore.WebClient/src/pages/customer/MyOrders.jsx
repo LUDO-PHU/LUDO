@@ -381,7 +381,7 @@ const MyOrders = () => {
     const [myReviews, setMyReviews] = useState([]);
     const [returningOrder, setReturningOrder] = useState(null);
     const [reviewingProduct, setReviewingProduct] = useState(null); // { item, orderId }
-    const [params, setParams] = useState({ page: 1, pageSize: 10, status: '' });
+    const [params, setParams] = useState({ page: 1, pageSize: 10, status: '', fromDate: '', toDate: '' });
     const highlightedOrderId = Number(searchParams.get('orderId') || 0);
     const highlightedOrderRef = useRef(null);
     const totalPages = useMemo(() => Math.ceil(total / params.pageSize) || 1, [total, params.pageSize]);
@@ -393,6 +393,8 @@ const MyOrders = () => {
                 page: params.page,
                 pageSize: params.pageSize,
                 status: params.status || undefined,
+                fromDate: params.fromDate || undefined,
+                toDate: params.toDate || undefined,
             });
             const paged = unwrapPagedData(res);
             setOrders(paged.items);
@@ -421,7 +423,7 @@ const MyOrders = () => {
             loadMyReviews();
         }, 30000);
         return () => window.clearInterval(intervalId);
-    }, [params.page, params.pageSize, params.status]);
+    }, [params.page, params.pageSize, params.status, params.fromDate, params.toDate]);
 
     useEffect(() => {
         if (!loading && highlightedOrderId && highlightedOrderRef.current) {
@@ -493,10 +495,32 @@ const MyOrders = () => {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
                 <h2 style={{ fontSize: 28, fontWeight: 900, margin: 0, color: '#0f172a' }}>Đơn hàng của tôi</h2>
-                <select value={params.status} onChange={event => setParams(prev => ({ ...prev, status: event.target.value, page: 1 }))} style={{ minHeight: 42, border: '1px solid #cbd5e1', borderRadius: 8, padding: '0 12px', fontWeight: 700 }}>
-                    <option value="">Tất cả trạng thái</option>
-                    {Object.entries(ORDER_STATUS).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}
-                </select>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <select value={params.status} onChange={event => setParams(prev => ({ ...prev, status: event.target.value, page: 1 }))} style={{ minHeight: 42, border: '1px solid #cbd5e1', borderRadius: 8, padding: '0 12px', fontWeight: 600, fontSize: 14 }}>
+                        <option value="">Tất cả trạng thái</option>
+                        {Object.entries(ORDER_STATUS).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}
+                    </select>
+                    <div style={{ position: 'relative' }}>
+                        <input
+                            type="date"
+                            value={params.fromDate}
+                            onChange={event => setParams(prev => ({ ...prev, fromDate: event.target.value, page: 1 }))}
+                            style={{ minHeight: 42, border: '1px solid #cbd5e1', borderRadius: 8, padding: '0 38px 0 12px', fontWeight: 700, colorScheme: 'light', fontSize: 14, color: params.fromDate ? '#0f172a' : '#94a3b8', outline: 'none', cursor: 'pointer' }}
+                            title="Từ ngày"
+                        />
+                        <i className="fa fa-calendar" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#0ea5e9', pointerEvents: 'none', fontSize: 14 }} />
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                        <input
+                            type="date"
+                            value={params.toDate}
+                            onChange={event => setParams(prev => ({ ...prev, toDate: event.target.value, page: 1 }))}
+                            style={{ minHeight: 42, border: '1px solid #cbd5e1', borderRadius: 8, padding: '0 38px 0 12px', fontWeight: 700, colorScheme: 'light', fontSize: 14, color: params.toDate ? '#0f172a' : '#94a3b8', outline: 'none', cursor: 'pointer' }}
+                            title="Đến ngày"
+                        />
+                        <i className="fa fa-calendar" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#0ea5e9', pointerEvents: 'none', fontSize: 14 }} />
+                    </div>
+                </div>
             </div>
 
             {orders.length === 0 ? (

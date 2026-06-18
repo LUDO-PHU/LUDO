@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { cartApi, notificationApi, unwrapApiData } from '../services/api';
-import { getImageUrl } from '../data/fallbackCatalog';
+import { cartApi, notificationApi, productApi, unwrapApiData, unwrapPagedData } from '../services/api';
+import { finalPrice, formatVnd, getImageUrl } from '../data/fallbackCatalog';
 import { formatAppDateTime } from '../utils/dateTime';
 import PolicyModal from './PolicyModal';
 
@@ -27,6 +27,10 @@ const getOrderNotificationDisplay = (title, content, orderCode) => {
 
     const text = normalizeText(`${title} ${content}`);
     const orderLabel = `#${orderCode}`;
+
+    if (text.includes('hoan ve kho') || text.includes('returned') || text.includes('tra hang') || text.includes('hoan tra') || text.includes('hoan ve')) {
+        return { title: 'Đơn hàng hoàn về kho', message: `Đơn ${orderLabel} đã hoàn về kho.` };
+    }
 
     if (text.includes('huy') || text.includes('cancel') || text.includes('reject') || text.includes('tu choi')) {
         return { title: 'Đơn hàng đã hủy', message: `Đơn ${orderLabel} đã bị hủy.` };
@@ -62,6 +66,13 @@ const CustomerLayout = () => {
     const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'none');
     const [selectedNotification, setSelectedNotification] = useState(null);
 
+    // Live search dropdown (chỉ hiện khi không ở trang home)
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [isSearchLoading, setIsSearchLoading] = useState(false);
+    const searchRef = useRef(null);
+    const isHomePage = location.pathname.includes('/customer/home');
+
     const isFocusMode = ['/cart', '/checkout', '/orders', '/profile'].some(path => location.pathname.includes(path));
     const unreadCount = notifications.filter(item => !(item.isRead ?? item.IsRead)).length;
     const tierLabel = user?.tier || user?.memberTier || 'Đồng';
@@ -83,12 +94,77 @@ const CustomerLayout = () => {
     }, [searchParams]);
 
     useEffect(() => {
+        // Khi ở trang home: filter bình thường
+        if (isHomePage) {
+            const handler = setTimeout(() => {
+                const currentKw = searchParams.get('keyword') || '';
+                const currentMin = searchParams.get('minPrice') || '';
+                const currentMax = searchParams.get('maxPrice') || '';
+
+                const minVal = Number(localMin);
+                const maxVal = Number(localMax);
+                if (localMin && localMax && minVal > maxVal) return;
+
+                if (
+                    localKw.trim() !== currentKw.trim() ||
+                    localMin !== currentMin ||
+                    localMax !== currentMax
+                ) {
+                    const params = new URLSearchParams(searchParams);
+                    if (localKw.trim()) params.set('keyword', localKw.trim()); else params.delete('keyword');
+                    if (localMin) params.set('minPrice', localMin); else params.delete('minPrice');
+                    if (localMax) params.set('maxPrice', localMax); else params.delete('maxPrice');
+                    params.delete('page');
+                    navigate(`/customer/home?${params.toString()}`);
+                }
+            }, 300);
+            return () => clearTimeout(handler);
+        }
+
+        // Khi KHÔNG ở trang home: hiển thị dropdown kết quả tìm kiếm
+        if (!localKw.trim()) {
+            setSearchResults([]);
+            setIsSearchOpen(false);
+            return;
+        }
+
+        const handler = setTimeout(async () => {
+            setIsSearchLoading(true);
+            try {
+                const minVal = Number(localMin);
+                const maxVal = Number(localMax);
+                const searchParams = {
+                    keyword: localKw.trim(),
+                    page: 1,
+                    pageSize: 8,
+                    minPrice: minVal > 0 ? minVal : undefined,
+                    maxPrice: maxVal > 0 ? maxVal : undefined,
+                    sortBy: sortBy !== 'none' ? sortBy : undefined,
+                };
+                const res = await productApi.search(searchParams);
+                const paged = unwrapPagedData(res);
+                setSearchResults(paged.items.slice(0, 8));
+                setIsSearchOpen(true);
+            } catch {
+                setSearchResults([]);
+            } finally {
+                setIsSearchLoading(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(handler);
+    }, [localKw, localMin, localMax, sortBy, isHomePage]);
+
+    useEffect(() => {
         const handleClickOutside = (event) => {
             if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
                 setIsUserMenuOpen(false);
             }
             if (notiRef.current && !notiRef.current.contains(event.target)) {
                 setIsNotiOpen(false);
+            }
+            if (searchRef.current && !searchRef.current.contains(event.target)) {
+                setIsSearchOpen(false);
             }
         };
 
@@ -105,7 +181,7 @@ const CustomerLayout = () => {
         try {
             const res = await cartApi.getCart();
             const items = res.data?.data || [];
-            setCartCount(items.reduce((sum, item) => sum + item.quantity, 0));
+            setCartCount(items.length);
         } catch {
             setCartCount(0);
         }
@@ -141,6 +217,8 @@ const CustomerLayout = () => {
     }, [loadNotifications]);
 
     const commitFilters = () => {
+        setIsSearchOpen(false);
+        setSearchResults([]);
         const params = new URLSearchParams(searchParams);
         if (localKw.trim()) params.set('keyword', localKw.trim()); else params.delete('keyword');
         if (localMin) params.set('minPrice', localMin); else params.delete('minPrice');
@@ -152,10 +230,20 @@ const CustomerLayout = () => {
 
     const handleSortChange = (value) => {
         setSortBy(value);
-        const params = new URLSearchParams(searchParams);
-        if (value !== 'none') params.set('sortBy', value); else params.delete('sortBy');
-        params.delete('page');
-        navigate(`/customer/home?${params.toString()}`);
+        if (isHomePage) {
+            const params = new URLSearchParams(searchParams);
+            if (value !== 'none') params.set('sortBy', value); else params.delete('sortBy');
+            params.delete('page');
+            navigate(`/customer/home?${params.toString()}`);
+        }
+        // Khi không ở home: sortBy thay đổi sẽ khởi động lại useEffect tìm kiếm
+    };
+
+    // Chỉ navigate khi ở trang home; không ở home thì để useEffect tự re-fetch dropdown
+    const handlePriceBlur = () => {
+        if (isHomePage) {
+            commitFilters();
+        }
     };
 
     const handleLogout = () => {
@@ -172,7 +260,7 @@ const CustomerLayout = () => {
                         <span className="brand-mark__text">PhoneStore</span>
                     </Link>
 
-                    <div className="store-search" role="search">
+                    <div className="store-search" role="search" ref={searchRef}>
                         <div className="store-search__main">
                             <i className="fa fa-search"></i>
                             <input
@@ -180,9 +268,73 @@ const CustomerLayout = () => {
                                 value={localKw}
                                 placeholder="Tìm sản phẩm, linh kiện..."
                                 onChange={event => setLocalKw(event.target.value)}
-                                onBlur={commitFilters}
                                 onKeyDown={event => event.key === 'Enter' && commitFilters()}
+                                onFocus={() => { if (!isHomePage && localKw.trim() && searchResults.length > 0) setIsSearchOpen(true); }}
                             />
+                            {/* Dropdown kết quả tìm kiếm trực tiếp */}
+                            {!isHomePage && isSearchOpen && (
+                                <div className="search-live-dropdown">
+                                    {isSearchLoading ? (
+                                        <div className="search-live-loading">
+                                            <i className="fa fa-spinner fa-spin"></i>
+                                            <span>Đang tìm...</span>
+                                        </div>
+                                    ) : searchResults.length === 0 ? (
+                                        <div className="search-live-empty">
+                                            <i className="fa fa-search"></i>
+                                            <span>Không tìm thấy sản phẩm nào</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {searchResults.map(product => {
+                                                const pid = product.id ?? product.Id;
+                                                const name = product.nameVi || product.name || product.Name || 'Sản phẩm';
+                                                const img = product.imageUrl || product.ImageUrl || '';
+                                                const price = finalPrice(product);
+                                                const original = Number(product.price ?? product.Price ?? 0);
+                                                const hasDiscount = product.discountPercent > 0 && original > 0 && price < original;
+                                                return (
+                                                    <button
+                                                        key={pid}
+                                                        type="button"
+                                                        className="search-live-item"
+                                                        onClick={() => {
+                                                            setIsSearchOpen(false);
+                                                            setLocalKw('');
+                                                            setSearchResults([]);
+                                                            navigate(`/customer/products/${pid}`);
+                                                        }}
+                                                    >
+                                                        <div className="search-live-item__img">
+                                                            {img ? (
+                                                                <img src={getImageUrl(img)} alt={name} onError={e => { e.currentTarget.src = '/images/multi/Error.png'; }} />
+                                                            ) : (
+                                                                <span className="search-live-item__img-placeholder"><i className="fa fa-image"></i></span>
+                                                            )}
+                                                        </div>
+                                                        <div className="search-live-item__info">
+                                                            <span className="search-live-item__name">{name}</span>
+                                                            <div className="search-live-item__prices">
+                                                                <span className="search-live-item__price">{formatVnd(price)}</span>
+                                                                {hasDiscount && <span className="search-live-item__original">{formatVnd(original)}</span>}
+                                                            </div>
+                                                        </div>
+                                                        <i className="fa fa-chevron-right search-live-item__arrow"></i>
+                                                    </button>
+                                                );
+                                            })}
+                                            <button
+                                                type="button"
+                                                className="search-live-viewall"
+                                                onClick={commitFilters}
+                                            >
+                                                <i className="fa fa-th-large"></i>
+                                                Xem tất cả kết quả cho &ldquo;{localKw}&rdquo;
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <input
                             className="price-input"
@@ -190,7 +342,7 @@ const CustomerLayout = () => {
                             value={localMin}
                             placeholder="Từ giá"
                             onChange={event => setLocalMin(event.target.value)}
-                            onBlur={commitFilters}
+                            onBlur={handlePriceBlur}
                             onKeyDown={event => event.key === 'Enter' && commitFilters()}
                         />
                         <input
@@ -199,7 +351,7 @@ const CustomerLayout = () => {
                             value={localMax}
                             placeholder="Đến giá"
                             onChange={event => setLocalMax(event.target.value)}
-                            onBlur={commitFilters}
+                            onBlur={handlePriceBlur}
                             onKeyDown={event => event.key === 'Enter' && commitFilters()}
                         />
                         <select value={sortBy} onChange={event => handleSortChange(event.target.value)} aria-label="Sắp xếp sản phẩm">

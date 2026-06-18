@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { orderApi, userApi, unwrapApiData, unwrapPagedData } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { ORDER_STATUS, activeLabel, formatVnd, readValue, roleLabel } from '../utils/display';
@@ -142,6 +142,20 @@ const Users = () => {
     const [editingUser, setEditingUser] = useState(null);
     const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
     const [params, setParams] = useState({ page: 1, pageSize: 10, keyword: '', userType: '', isActive: '' });
+    const [localKw, setLocalKw] = useState(params.keyword);
+
+    useEffect(() => {
+        setLocalKw(params.keyword);
+    }, [params.keyword]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            if (localKw !== params.keyword) {
+                setParams(prev => ({ ...prev, keyword: localKw, page: 1 }));
+            }
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [localKw]);
 
     const totalPages = useMemo(() => Math.ceil(total / params.pageSize) || 1, [total, params.pageSize]);
 
@@ -246,8 +260,8 @@ const Users = () => {
                             type="text"
                             className="input-search"
                             placeholder="Tìm tên, số điện thoại, email, tài khoản..."
-                            value={params.keyword}
-                            onChange={event => setParams(prev => ({ ...prev, keyword: event.target.value, page: 1 }))}
+                            value={localKw}
+                            onChange={event => setLocalKw(event.target.value)}
                         />
                     </div>
                     <select className="select-filter" value={params.userType} onChange={event => setParams(prev => ({ ...prev, userType: event.target.value, page: 1 }))}>

@@ -374,11 +374,26 @@ const ProductDetail = () => {
                     <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '30px', textAlign: 'center' }}>SẢN PHẨM CÙNG DANH MỤC</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
                         {relatedProducts.map(rp => (
-                            <Link to={`/customer/products/${rp.id}`} key={rp.id} style={{ textDecoration: "none" }}>
-                                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '15px', cursor: 'pointer', textAlign: 'center', transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
+                            <Link to={`/customer/products/${rp.id}`} key={rp.id} style={{ textDecoration: "none", display: "flex", flexDirection: "column", height: "100%" }}>
+                                <div 
+                                    style={{ 
+                                        background: '#fff', 
+                                        border: '1px solid #e2e8f0', 
+                                        borderRadius: '12px', 
+                                        padding: '15px', 
+                                        cursor: 'pointer', 
+                                        textAlign: 'center', 
+                                        transition: 'transform 0.2s',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        flex: 1
+                                    }} 
+                                    onMouseOver={e => e.currentTarget.style.transform = 'translateY(-5px)'} 
+                                    onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+                                >
                                     <img src={getImageUrl(getMainImage(rp))} alt={rp.nameVi || rp.name} style={{ width: '100%', height: '180px', objectFit: 'contain', marginBottom: '15px', background: '#fff', borderRadius: '8px', padding: '5px' }} onError={e => e.target.src = PLACEHOLDER} />
                                     <h4 style={{ fontSize: '15px', margin: '0 0 10px 0', color: '#1e293b', lineHeight: 1.45 }}>{rp.nameVi || rp.name}</h4>
-                                    <div style={{ color: '#0ea5e9', fontWeight: '900', fontSize: '18px' }}>{fmt(Number(rp.finalPrice ?? rp.FinalPrice ?? rp.price ?? 0))}</div>
+                                    <div style={{ color: '#0ea5e9', fontWeight: '900', fontSize: '18px', marginTop: 'auto' }}>{fmt(Number(rp.finalPrice ?? rp.FinalPrice ?? rp.price ?? 0))}</div>
                                 </div>
                             </Link>
                         ))}

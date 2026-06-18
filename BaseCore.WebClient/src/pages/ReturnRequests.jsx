@@ -248,16 +248,27 @@ const DetailModal = ({ request, onClose, onActionSuccess }) => {
 const ReturnRequests = () => {
     const { showToast } = useToast();
     const [requests, setRequests] = useState([]);
-    const [filtered, setFiltered] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filterStatus, setFilterStatus] = useState('all');     
-    const [filterType, setFilterType] = useState('all');    
     const [selectedRequest, setSelectedRequest] = useState(null);
+
+    const [params, setParams] = useState({
+        keyword: '',
+        status: '',
+        fromDate: '',
+        toDate: ''
+    });
+    const [localKw, setLocalKw] = useState('');
 
     const loadRequests = useCallback(async (showLoading = true) => {
         try {
             if (showLoading) setLoading(true);
-            const res = await returnRequestApi.getAll();
+            const apiParams = {
+                keyword: params.keyword || undefined,
+                status: params.status !== '' ? Number(params.status) : undefined,
+                fromDate: params.fromDate || undefined,
+                toDate: params.toDate || undefined
+            };
+            const res = await returnRequestApi.getAll(apiParams);
             const data = unwrapApiData(res, []);
             setRequests(Array.isArray(data) ? data : []);
         } catch {
@@ -265,38 +276,22 @@ const ReturnRequests = () => {
         } finally {
             if (showLoading) setLoading(false);
         }
-    }, [showToast]);
+    }, [params, showToast]);
 
     useEffect(() => {
         loadRequests();
     }, [loadRequests]);
 
     useEffect(() => {
-        let list = [...requests];
+        const handler = setTimeout(() => {
+            if (localKw !== params.keyword) {
+                setParams(prev => ({ ...prev, keyword: localKw }));
+            }
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [localKw]);
 
-        if (filterStatus !== 'all') {
-            const statusMap = { 'pending': 0, 'approved': 1, 'rejected': 2 };
-            list = list.filter(r => r.status === statusMap[filterStatus]);
-        }
-
-        if (filterType !== 'all') {
-            const typeMap = { 'return': 0, 'exchange': 1 };
-            list = list.filter(r => r.type === typeMap[filterType]);
-        }
-
-        setFiltered(list);
-    }, [requests, filterStatus, filterType]);
-
-    if (loading) {
-        return (
-            <div className="admin-layout">
-                <div className="admin-container" style={{ textAlign: 'center', padding: '100px', fontSize: '18px', color: '#cbd5e1' }}>
-                    <i className="fa fa-sync-alt fa-spin" style={{ marginRight: '10px' }} />
-                    Đang tải danh sách yêu cầu...
-                </div>
-            </div>
-        );
-    }
+    const filtered = requests;
 
     return (
         <div className="admin-layout">
@@ -314,22 +309,51 @@ const ReturnRequests = () => {
                 </div>
 
                 {   }
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px', background: '#0f172a', padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', fontWeight: '700' }}>Trạng thái:</span>
-                        <select 
-                            value={filterStatus} 
-                            onChange={e => setFilterStatus(e.target.value)}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #1e293b', background: '#1e293b', color: '#fff', fontSize: '13px', fontWeight: '700' }}
-                        >
-                            <option value="all">Tất cả trạng thái</option>
-                            <option value="pending">⏳ Chờ xử lý</option>
-                            <option value="approved">✅ Đã chấp nhận</option>
-                            <option value="rejected">❌ Đã từ chối</option>
-                        </select>
+                {   }
+                <div className="filter-bar" style={{ marginBottom: '20px' }}>
+                    <div className="search-box">
+                        <i className="fa fa-search" />
+                        <input
+                            type="text"
+                            className="input-search"
+                            placeholder="Tìm mã đơn, khách hàng, số điện thoại..."
+                            value={localKw}
+                            onChange={e => setLocalKw(e.target.value)}
+                        />
                     </div>
+                    
+                    <select 
+                        className="select-filter"
+                        value={params.status} 
+                        onChange={e => setParams(prev => ({ ...prev, status: e.target.value }))}
+                    >
+                        <option value="">Tất cả trạng thái</option>
+                        <option value="0">⏳ Chờ xử lý</option>
+                        <option value="1">✅ Đã chấp nhận</option>
+                        <option value="2">❌ Đã từ chối</option>
+                    </select>
 
-
+                    <div style={{ position: 'relative' }}>
+                        <input 
+                            type="date" 
+                            className="input-search"
+                            style={{ paddingLeft: '12px', paddingRight: '40px', colorScheme: 'dark' }} 
+                            value={params.fromDate} 
+                            onChange={e => setParams(prev => ({ ...prev, fromDate: e.target.value }))}
+                        />
+                        <i className="fa fa-calendar" style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
+                    </div>
+                    
+                    <div style={{ position: 'relative' }}>
+                        <input 
+                            type="date" 
+                            className="input-search"
+                            style={{ paddingLeft: '12px', paddingRight: '40px', colorScheme: 'dark' }} 
+                            value={params.toDate} 
+                            onChange={e => setParams(prev => ({ ...prev, toDate: e.target.value }))}
+                        />
+                        <i className="fa fa-calendar" style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
+                    </div>
                 </div>
 
                 {  }
@@ -348,7 +372,13 @@ const ReturnRequests = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {filtered.length > 0 ? filtered.map(req => (
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="7" style={{ textAlign: 'center', padding: '50px', color: 'rgba(255,255,255,0.4)' }}>
+                                        <i className="fa fa-sync-alt fa-spin" style={{ marginRight: '8px', fontSize: '20px' }} /> Đang tải danh sách yêu cầu...
+                                    </td>
+                                </tr>
+                            ) : filtered.length > 0 ? filtered.map(req => (
                                 <tr 
                                     key={req.id} 
                                     className="clickable" 

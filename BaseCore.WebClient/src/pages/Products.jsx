@@ -360,6 +360,20 @@ const Products = () => {
     const [imageFiles, setImageFiles] = useState([]);
     const [form, setForm] = useState(() => emptyForm(user?.supplierId || ''));
     const [params, setParams] = useState({ page: 1, pageSize: 10, keyword: '', categoryId: '', status: '' });
+    const [localKw, setLocalKw] = useState(params.keyword);
+
+    useEffect(() => {
+        setLocalKw(params.keyword);
+    }, [params.keyword]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            if (localKw !== params.keyword) {
+                setParams(prev => ({ ...prev, keyword: localKw, page: 1 }));
+            }
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [localKw]);
 
     const currentSupplierId = user?.supplierId || supplierProfile?.id || '';
     const totalPages = useMemo(() => Math.ceil(total / params.pageSize) || 1, [total, params.pageSize]);
@@ -552,8 +566,8 @@ const Products = () => {
                             type="text"
                             className="input-search"
                             placeholder={isSupplier ? 'Tìm theo tên sản phẩm hoặc màu sắc...' : 'Tìm tên, danh mục, thương hiệu...'}
-                            value={params.keyword}
-                            onChange={event => setParams(prev => ({ ...prev, keyword: event.target.value, page: 1 }))}
+                            value={localKw}
+                            onChange={event => setLocalKw(event.target.value)}
                         />
                     </div>
 
